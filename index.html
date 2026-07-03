@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#161313" />
+  <meta name="description" content="JELANI — шаурма, комбо и сеты. Собери свою шаурму или сэндвич." />
+  <title>JELANI — fast food & street kitchen</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="preload" as="image" href="images/hero-main.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a href="#top" class="brand" aria-label="JELANI — на главную">
+      <img class="brand-logo" src="images/jelani-logo.png" alt="JELANI Street Kitchen" />
+    </a>
+
+    <nav class="desktop-nav" aria-label="Основная навигация">
+      <a href="#combos">Комбо</a>
+      <a href="#sets">Сеты</a>
+      <a href="#menu">Меню</a>
+      <a href="#about">О нас</a>
+    </nav>
+
+    <div class="header-actions">
+      <button class="header-link" id="order-history-btn" type="button">Мои заказы</button>
+      <button class="cart-button" id="open-cart" type="button" aria-label="Открыть корзину">
+        <span>Корзина</span><b id="cart-count">0</b>
+      </button>
+    </div>
+
+    <button class="mobile-menu-toggle" id="mobile-menu-toggle" type="button" aria-label="Открыть меню" aria-controls="mobile-menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </header>
+
+  <aside class="mobile-menu" id="mobile-menu" aria-hidden="true">
+    <div class="mobile-menu__top">
+      <span>Меню JELANI</span>
+      <button class="icon-button" id="close-mobile-menu" type="button" aria-label="Закрыть меню">×</button>
+    </div>
+    <nav class="mobile-menu__nav" aria-label="Мобильная навигация">
+      <a href="#combos">Комбо <span>→</span></a>
+      <a href="#sets">Сеты <span>→</span></a>
+      <a href="#menu">Меню <span>→</span></a>
+      <a href="#about">О нас <span>→</span></a>
+      <button type="button" data-open-history>Мои заказы <span>→</span></button>
+    </nav>
+    <div class="mobile-menu__note">
+      <span>⚡ Готовим после заказа</span>
+      <span>🛍 Самовывоз и доставка</span>
+    </div>
+  </aside>
+
+  <main id="top">
+    <section class="hero" aria-label="Главный баннер JELANI">
+      <div class="hero-slides" aria-live="polite">
+        <div class="hero-slide is-active" data-slide-index="0" aria-hidden="false">
+          <img src="images/hero-main.png" alt="Шаурма, бургер, картофель фри и напиток JELANI" fetchpriority="high" />
+        </div>
+        <div class="hero-slide" data-slide-index="1" aria-hidden="true">
+          <img src="images/hero-slide-1.png" alt="Шаурма, крылышки, картофель фри и напиток JELANI" loading="lazy" />
+        </div>
+        <div class="hero-slide" data-slide-index="2" aria-hidden="true">
+          <img src="images/hero-slide-2.png" alt="Бургер, шаурма, картофель фри и напиток JELANI" loading="lazy" />
+        </div>
+        <div class="hero-slide" data-slide-index="3" aria-hidden="true">
+          <img src="images/hero-slide-3.png" alt="Шаурма, горячее мясо на огне, картофель фри и напиток JELANI" loading="lazy" />
+        </div>
+      </div>
+
+      <div class="hero-copy">
+        <p class="eyebrow">СОЧНО. БЫСТРО. ПО-ТВОЕМУ.</p>
+        <h1>Твой вкус.<br><em>Твои</em> правила.</h1>
+        <p class="hero-text">Шаурма, бургеры, донеры и комбо, которые можно собрать так, как хочешь именно ты.</p>
+        <div class="hero-actions">
+          <a class="primary-btn" href="#menu">Смотреть меню <span>→</span></a>
+          <button class="ghost-btn" type="button" data-open-builder="shawarma">Собрать шаурму</button>
+        </div>
+        <div class="hero-meta">
+          <span>⚡ Готовим после заказа</span>
+          <span>🛍 Самовывоз и доставка</span>
+        </div>
+      </div>
+
+      <div class="hero-dots" role="tablist" aria-label="Баннеры JELANI">
+        <button class="hero-dot is-active" type="button" data-hero-slide="0" aria-label="Показать баннер 1" aria-current="true"></button>
+        <button class="hero-dot" type="button" data-hero-slide="1" aria-label="Показать баннер 2" aria-current="false"></button>
+        <button class="hero-dot" type="button" data-hero-slide="2" aria-label="Показать баннер 3" aria-current="false"></button>
+        <button class="hero-dot" type="button" data-hero-slide="3" aria-label="Показать баннер 4" aria-current="false"></button>
+      </div>
+    </section>
+
+    <section class="two-feature-block container" aria-label="Главные предложения">
+      <article class="feature-card feature-card--combo">
+        <div>
+          <p class="eyebrow">ВЫГОДНО СЕГОДНЯ</p>
+          <h2>Комбо дня</h2>
+          <p>Шаурма стандартная, фри, напиток и соус. Выбираешь мясо сам.</p>
+          <button class="text-button" type="button" data-quick-combo="shawarma-combo">Выбрать комбо <span>→</span></button>
+        </div>
+        <div class="feature-emoji">🥤<span>🌯</span></div>
+      </article>
+
+      <article class="feature-card feature-card--builder">
+        <div>
+          <p class="eyebrow">СОБЕРИ САМ</p>
+          <h2>Без лишнего.<br>Или с двойным мясом.</h2>
+          <p>Выбирай размер, основу, овощи, до двух бесплатных соусов и добавки.</p>
+          <button class="text-button" type="button" data-open-builder="shawarma">Открыть конструктор <span>→</span></button>
+        </div>
+        <div class="builder-graphic" aria-hidden="true"><span>+</span><span>+</span><span>+</span></div>
+      </article>
+    </section>
+
+    <section class="popular-section container" id="combos">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">НА ОДНОГО</p>
+          <h2>Комбо, которые не надо объяснять</h2>
+        </div>
+        <p>В каждом комбо: выбирай мясо, напиток и соус перед добавлением в корзину.</p>
+      </div>
+      <div class="horizontal-grid" id="combo-grid"></div>
+    </section>
+
+    <section class="builder-banner container">
+      <div class="builder-banner__copy">
+        <p class="eyebrow">JELANI CUSTOM LAB</p>
+        <h2>Собери то, что<br>захочется повторить.</h2>
+        <p>Две базы: шаурма и сэндвич. Убирай любые овощи, добавляй сыр, грибы, фри внутрь, халапеньо и двойное мясо.</p>
+      </div>
+      <div class="builder-banner__actions">
+        <button class="primary-btn" type="button" data-open-builder="shawarma">Собрать шаурму <span>→</span></button>
+        <button class="secondary-dark-btn" type="button" data-open-builder="sandwich">Собрать сэндвич</button>
+      </div>
+    </section>
+
+    <section class="popular-section container" id="sets">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">НА ДВОИХ И БОЛЬШЕ</p>
+          <h2>Сеты для своих</h2>
+        </div>
+        <p>Уже собрали так, чтобы всем хватило. Никакого шашлыка — только то, что реально будет в JELANI.</p>
+      </div>
+      <div class="sets-grid" id="sets-grid"></div>
+    </section>
+
+    <section class="menu-section container" id="menu">
+      <div class="section-heading menu-heading">
+        <div>
+          <p class="eyebrow">ПОЛНОЕ МЕНЮ</p>
+          <h2>Выбирай, что хочется сейчас</h2>
+        </div>
+        <button class="search-toggle" id="open-search" type="button">⌕ Найти позицию</button>
+      </div>
+      <div class="category-tabs" id="category-tabs"></div>
+      <div class="menu-grid" id="menu-grid"></div>
+    </section>
+
+    <section class="about-section" id="about">
+      <div class="container about-grid">
+        <div>
+          <p class="eyebrow">JELANI STREET KITCHEN</p>
+          <h2>Быстрая еда<br>с нормальным отношением к вкусу.</h2>
+        </div>
+        <div class="about-text">
+          <p>Основа — знакомая еда, но без скучной сборки: выбираешь то, что любишь, и убираешь то, что не любишь. Временные цены и составы уже собраны в коде отдельными блоками — потом их легко заменить на реальные.</p>
+          <div class="about-points"><span>01 — свой конструктор</span><span>02 — комбо и сеты</span><span>03 — понятный заказ</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="brand footer-brand"><img class="brand-logo" src="images/jelani-logo.png" alt="JELANI Street Kitchen" /></div>
+      <span>© 2026 JELANI</span>
+      <span>Временное меню для запуска</span>
+    </div>
+  </footer>
+
+  <button class="mobile-cart" id="mobile-cart" type="button" aria-label="Открыть корзину">
+    <span>Корзина</span><b id="mobile-cart-total">0 ₽</b>
+  </button>
+
+  <div class="overlay" id="cart-overlay" aria-hidden="true">
+    <aside class="cart-drawer" role="dialog" aria-modal="true" aria-label="Корзина">
+      <div class="drawer-head"><div><p class="eyebrow">ТВОЙ ЗАКАЗ</p><h2>Корзина</h2></div><button class="icon-button" id="close-cart" type="button">×</button></div>
+      <div class="cart-items" id="cart-items"></div>
+      <div class="cart-empty" id="cart-empty">Корзина пока пустая.<br>Добавь что-нибудь сочное.</div>
+      <div class="cart-summary">
+        <div><span>Итого</span><strong id="cart-total">0 ₽</strong></div>
+        <button class="primary-btn full-btn" id="checkout-btn" type="button">Оформить заказ <span>→</span></button>
+      </div>
+    </aside>
+  </div>
+
+  <div class="overlay" id="builder-overlay" aria-hidden="true">
+    <section class="builder-modal" role="dialog" aria-modal="true" aria-labelledby="builder-title">
+      <div class="drawer-head"><div><p class="eyebrow">JELANI CUSTOM LAB</p><h2 id="builder-title">Собери свою шаурму</h2></div><button class="icon-button" id="close-builder" type="button">×</button></div>
+      <div class="builder-layout">
+        <div class="builder-form" id="builder-form"></div>
+        <aside class="builder-summary">
+          <div class="builder-preview" id="builder-preview">🌯</div>
+          <p class="eyebrow">ТВОЯ СБОРКА</p>
+          <h3 id="builder-summary-title">Шаурма</h3>
+          <p id="builder-summary-text"></p>
+          <div class="summary-price"><span>Итого</span><strong id="builder-price">0 ₽</strong></div>
+          <button class="primary-btn full-btn" id="add-builder-to-cart" type="button">Добавить в корзину <span>→</span></button>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <div class="overlay" id="combo-overlay" aria-hidden="true">
+    <section class="choice-modal" role="dialog" aria-modal="true" aria-labelledby="combo-title">
+      <div class="drawer-head"><div><p class="eyebrow">СОБЕРИ КОМБО</p><h2 id="combo-title">Комбо</h2></div><button class="icon-button" id="close-combo" type="button">×</button></div>
+      <div id="combo-form"></div>
+      <div class="choice-footer"><div><span>Итого</span><strong id="combo-price">0 ₽</strong></div><button class="primary-btn" id="add-combo-to-cart" type="button">В корзину <span>→</span></button></div>
+    </section>
+  </div>
+
+  <div class="overlay" id="checkout-overlay" aria-hidden="true">
+    <section class="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
+      <div class="drawer-head"><div><p class="eyebrow">ПОЧТИ ГОТОВО</p><h2 id="checkout-title">Оформление заказа</h2></div><button class="icon-button" id="close-checkout" type="button">×</button></div>
+      <form id="checkout-form" class="checkout-form">
+        <label>Имя<input required name="name" placeholder="Как к вам обращаться"></label>
+        <label>Телефон<input required name="phone" placeholder="+7 900 000-00-00"></label>
+        <label>Способ получения<select name="delivery"><option>Самовывоз</option><option>Доставка</option></select></label>
+        <label>Адрес / комментарий<textarea name="comment" placeholder="Адрес, подъезд, пожелания к заказу"></textarea></label>
+        <div class="checkout-total"><span>К оплате</span><strong id="checkout-total">0 ₽</strong></div>
+        <button class="primary-btn full-btn" type="submit">Подтвердить заказ <span>→</span></button>
+        <p class="form-note">Сейчас это тестовое оформление: заказ сохраняется в этом браузере. Для настоящих заказов потом подключим Telegram/сервер.</p>
+      </form>
+    </section>
+  </div>
+
+  <div class="overlay" id="history-overlay" aria-hidden="true">
+    <section class="choice-modal history-modal" role="dialog" aria-modal="true" aria-labelledby="history-title">
+      <div class="drawer-head"><div><p class="eyebrow">ЛИЧНЫЙ КАБИНЕТ</p><h2 id="history-title">Мои заказы</h2></div><button class="icon-button" id="close-history" type="button">×</button></div>
+      <div id="history-list" class="history-list"></div>
+    </section>
+  </div>
+
+  <div class="overlay" id="search-overlay" aria-hidden="true">
+    <section class="choice-modal search-modal" role="dialog" aria-modal="true" aria-labelledby="search-title">
+      <div class="drawer-head"><div><p class="eyebrow">ПОИСК В МЕНЮ</p><h2 id="search-title">Что ищем?</h2></div><button class="icon-button" id="close-search" type="button">×</button></div>
+      <input class="search-input" id="search-input" placeholder="Например: шаурма, фри, сырники…" autocomplete="off" />
+      <div id="search-results" class="search-results"></div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="script.js"></script>
+</body>
+</html>
