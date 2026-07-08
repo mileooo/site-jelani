@@ -29,6 +29,82 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}a{text-decoratio
 @media(max-width:700px){.container{width:min(100% - 28px,1180px)}.site-header{min-height:66px;padding:0 14px}.brand-mark{width:33px;height:33px;border-radius:10px;font-size:16px}.brand-text{font-size:16px}.hero{width:calc(100% - 28px);min-height:615px;margin:14px auto 42px;padding:46px 22px;border-radius:24px}.hero h1{font-size:41px}.hero-text{font-size:14px;max-width:330px}.hero-food{right:-17%;bottom:-6%;width:75%;height:57%;opacity:.85}.sticker-hot{right:11%;top:39%;width:59px;height:59px;font-size:8px}.sticker-fresh{right:74%;top:25%;width:60px;height:60px;font-size:8px}.hero-meta{gap:8px;margin-top:26px;font-size:10px}.two-feature-block{grid-template-columns:1fr;margin-bottom:44px}.feature-card{min-height:240px;padding:24px}.feature-card h2{font-size:28px}.section-heading{display:block;margin-bottom:15px}.section-heading h2{font-size:30px}.section-heading>p{margin-top:12px}.popular-section{margin-bottom:44px}.horizontal-grid{margin-right:-14px;padding-right:14px}.sets-grid{grid-template-columns:1fr 1fr;gap:9px}.set-card{min-height:202px;padding:16px}.set-card h3{font-size:18px}.set-card p{font-size:10px}.builder-banner{display:block;margin-bottom:46px;padding:25px}.builder-banner h2{font-size:29px}.builder-banner__actions{justify-content:flex-start;margin-top:19px}.menu-section{padding-bottom:50px}.menu-grid{grid-template-columns:1fr 1fr;gap:9px}.menu-card{min-height:273px}.menu-card .food-card__visual{min-height:115px}.food-card__body{padding:12px}.food-card__title{font-size:14px}.food-card__desc{font-size:11px}.price{font-size:15px}.about-section{padding:50px 0}.about-grid{grid-template-columns:1fr;gap:25px}.about-grid h2{font-size:31px}.about-text>p{font-size:14px}.footer-inner{display:grid;gap:9px}.mobile-cart{position:fixed;z-index:45;left:14px;right:14px;bottom:14px;display:flex;justify-content:space-between;align-items:center;padding:12px 13px;border:0;border-radius:15px;background:var(--ink);color:#fff;box-shadow:var(--shadow);font-weight:800}.mobile-cart b{padding:4px 7px;border-radius:8px;background:var(--acid);color:var(--ink);font-size:12px}.cart-button{display:none}.cart-drawer{padding:20px}.cart-summary{padding:15px 20px 20px}.builder-modal,.choice-modal,.checkout-modal{width:100%;max-height:100vh;padding:20px;border-radius:0}.builder-layout{grid-template-columns:1fr}.builder-summary{position:static}.builder-summary p:not(.eyebrow){min-height:0}.option-grid{grid-template-columns:repeat(2,1fr)}.choice-footer{bottom:-20px;margin:20px -20px -20px;padding:14px 20px 18px}.drawer-head h2{font-size:24px}.search-modal{align-self:end;border-radius:22px 22px 0 0}.search-item button{font-size:11px}.toast{bottom:83px}}
 @media(max-width:390px){.hero h1{font-size:35px}.hero-actions .primary-btn,.hero-actions .ghost-btn{width:100%;min-height:44px}.sets-grid{grid-template-columns:1fr}.menu-grid{grid-template-columns:1fr 1fr}.feature-emoji{font-size:72px}.feature-emoji span{font-size:83px}.header-actions{display:none}}
 
+/* ================================================================
+   JELANI launch order flow: status, promo, upsells, favorites
+================================================================ */
+.store-status{
+  display:grid;
+  gap:1px;
+  min-width:142px;
+  color:#4e4741;
+  font-size:11px;
+  font-weight:800;
+  line-height:1.2;
+}
+.store-status strong{color:var(--ink);font-size:12px}
+.promo-strip{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:18px;
+  margin-bottom:54px;
+  padding:22px 24px;
+  border-radius:20px;
+  background:var(--acid);
+  color:var(--ink);
+}
+.promo-strip h2{margin:4px 0 0;font:800 28px/1 Unbounded,Arial,sans-serif;letter-spacing:-.07em}
+.promo-strip p:not(.eyebrow){margin:0;color:#403832;font-size:13px;line-height:1.45}
+.reviews-section{margin:0 auto 64px}
+.reviews-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+.review-card{padding:18px;border:1px solid var(--line);border-radius:18px;background:#fffdf8}
+.review-card strong{display:block;font:800 15px/1.2 Unbounded,Arial,sans-serif;letter-spacing:-.05em}
+.review-card span{display:block;margin-top:8px;color:var(--orange);font-size:13px;font-weight:800}
+.review-card p{margin:10px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+.cart-drawer{position:relative;display:flex;flex-direction:column}
+.cart-items{flex:1;min-height:0;max-height:none}
+.cart-promo,.cart-upsells{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:15px;background:#fff}
+.cart-promo label{display:block;margin-bottom:7px;color:#514943;font-size:11px;font-weight:800}
+.promo-row{display:grid;grid-template-columns:1fr auto;gap:8px}
+.promo-row input{min-width:0;padding:10px 11px;border:1px solid var(--line);border-radius:11px;background:var(--cream);outline:none;text-transform:uppercase}
+.promo-row input:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,90,31,.12)}
+#promo-message{min-height:16px;margin:7px 0 0;color:var(--muted);font-size:10px;font-weight:800}
+.upsell-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:9px}
+.upsell-grid button{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:39px;padding:8px 10px;border:1px solid var(--line);border-radius:11px;background:var(--cream);color:var(--ink);font-size:12px;font-weight:800;text-align:left}
+.upsell-grid button:hover{border-color:var(--orange);background:#fff3e8}
+.upsell-grid strong{color:var(--orange);white-space:nowrap}
+.cart-summary{position:static;margin:14px -28px -28px;padding:16px 28px 28px}
+.cart-summary .secondary-dark-btn{min-height:42px;margin-bottom:8px;background:transparent;border:1px solid var(--line);color:var(--ink);box-shadow:none}
+.cart-summary .secondary-dark-btn:hover{border-color:var(--orange);color:var(--orange);background:transparent}
+#cart-discount-row strong{color:var(--orange)}
+.history-item__actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+.history-item__actions button{min-height:34px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--cream);color:var(--ink);font-size:11px;font-weight:800}
+.history-item__actions button:hover{border-color:var(--orange);color:var(--orange)}
+.quick-filters{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.quick-filters button{min-height:34px;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);font-size:11px;font-weight:800}
+.quick-filters button:hover,.quick-filters button.active{border-color:var(--ink);background:var(--ink);color:#fff}
+.checkout-form label[hidden]{display:none}
+
+@media(max-width:980px){
+  .store-status{display:none}
+  .promo-strip{grid-template-columns:1fr;align-items:start}
+  .reviews-grid{grid-template-columns:1fr}
+}
+@media(max-width:700px){
+  body{padding-bottom:24px}
+  body.has-cart{padding-bottom:74px}
+  .promo-strip{margin-bottom:42px;padding:18px;border-radius:18px}
+  .promo-strip h2{font-size:23px}
+  .cart-drawer{padding:16px}
+  .cart-summary{margin:12px -16px -16px;padding:13px 16px calc(16px + env(safe-area-inset-bottom))}
+  .cart-promo,.cart-upsells{padding:10px}
+  .promo-row{grid-template-columns:1fr}
+  .upsell-grid{grid-template-columns:1fr 1fr}
+  .mobile-cart{display:none;bottom:max(8px,env(safe-area-inset-bottom));left:10px;right:10px;min-height:48px;padding:9px 11px;border-radius:13px}
+  .mobile-cart.is-visible{display:flex}
+  .toast{bottom:70px}
+}
+
 
 /* ================================================================
    JELANI: real logo + hero carousel from the supplied brand images

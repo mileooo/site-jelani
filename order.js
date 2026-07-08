@@ -1,0 +1,117 @@
+const JSON_HEADERS = {
+  'content-type': 'application/json; charset=utf-8'
+};
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: JSON_HEADERS
+  });
+}
+
+function escapeHtml(value = '') {
+  return String(value).replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }[char]));
+}
+
+function formatPrice(value) {
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'RUB',
+    maximumFractionDigits: 0
+  }).format(Number(value || 0));
+}
+
+function validateOrder(order) {
+  if (!order || typeof order !== 'object') throw new Error('Некорректный заказ');
+  if (!order.name || !order.phone) throw new Error('Нужны имя и телефон');
+  if (!Array.isArray(order.items) || order.items.length === 0) throw new Error('Корзина пустая');
+  if (order.delivery === 'Доставка' && !order.address) throw new Error('Нужен адрес доставки');
+}
+
+function orderMessage(order) {
+  const items = order.items.map((item, index) => {
+    const qty = Number(item.qty || 1);
+    const details = item.details ? `\n   ${escapeHtml(item.details)}` : '';
+    return `${index + 1}. ${escapeHtml(item.name)} x ${qty} — ${formatPrice(Number(item.price || 0) * qty)}${details}`;
+  }).join('\n');
+
+  return [
+    `<b>Новый заказ ${escapeHtml(order.id)}</b>`,
+    '',
+    `<b>Клиент:</b> ${escapeHtml(order.name)}`,
+    `<b>Телефон:</b> ${escapeHtml(order.phone)}`,
+    `<b>Получение:</b> ${escapeHtml(order.delivery)}`,
+    order.address ? `<b>Адрес:</b> ${escapeHtml(order.address)}` : '',
+    `<b>Оплата:</b> ${escapeHtml(order.payment)}`,
+    order.comment ? `<b>Комментарий:</b> ${escapeHtml(order.comment)}` : '',
+    order.promo ? `<b>Промокод:</b> ${escapeHtml(order.promo)}` : '',
+    '',
+    '<b>Состав заказа:</b>',
+    items,
+    '',
+    `<b>Товары:</b> ${formatPrice(order.subtotal)}`,
+    Number(order.discount) > 0 ? `<b>Скидка:</b> −${formatPrice(order.discount)}` : '',
+    `<b>Итого:</b> ${formatPrice(order.total)}`
+  ].filter(Boolean).join('\n');
+}
+
+function statusKeyboard(order, index = 0) {
+  const pickup = ['Принять заказ', 'Готовим', 'Ожидает самовывоза', 'Выдан', 'Завершить'];
+  const delivery = ['Принять заказ', 'Готовим', 'Передать курьеру', 'В пути', 'Завершить'];
+  const flow = order.delivery === 'Доставка' ? 'delivery' : 'pickup';
+  const steps = flow === 'delivery' ? delivery : pickup;
+  const next = steps[index] ? [[{
+    text: steps[index],
+    callback_data: `o:${order.id}:${flow}:${index + 1}`
+  }]] : [];
+
+  return {
+    inline_keyboard: [
+      ...next,
+      [{ text: 'Отменить заказ', callback_data: `o:${order.id}:${flow}:cancel` }]
+    ]
+  };
+}
+
+async function telegram(env, method, payload) {
+  if (!env.TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN не задан');
+
+  const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (!data.ok) throw new Error(data.description || 'Telegram API error');
+  return data.result;
+}
+
+export async function onRequestPost({ request, env }) {
+  try {
+    if (!env.TELEGRAM_CHAT_ID) throw new Error('TELEGRAM_CHAT_ID не задан');
+
+    const order = await request.json();
+    validateOrder(order);
+
+    const result = await telegram(env, 'sendMessage', {
+      chat_id: env.TELEGRAM_CHAT_ID,
+      text: orderMessage(order),
+      parse_mode: 'HTML',
+      reply_markup: statusKeyboard(order)
+    });
+
+    return json({ ok: true, messageId: result.message_id });
+  } catch (error) {
+    return json({ ok: false, error: error.message }, 500);
+  }
+}
+
+export function onRequest() {
+  return json({ ok: false, error: 'Method not allowed' }, 405);
+}

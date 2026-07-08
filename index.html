@@ -25,7 +25,13 @@
       <a href="#about">О нас</a>
     </nav>
 
+    <div class="store-status" aria-live="polite">
+      <strong data-store-status>Открыто до 21:45</strong>
+      <span>Готовим 15–20 минут</span>
+    </div>
+
     <div class="header-actions">
+      <button class="header-link" id="favorites-btn" type="button">Любимые</button>
       <button class="header-link" id="order-history-btn" type="button">Мои заказы</button>
       <button class="cart-button" id="open-cart" type="button" aria-label="Открыть корзину">
         <span>Корзина</span><b id="cart-count">0</b>
@@ -47,11 +53,12 @@
       <a href="#sets">Сеты <span>→</span></a>
       <a href="#menu">Меню <span>→</span></a>
       <a href="#about">О нас <span>→</span></a>
+      <button type="button" data-open-favorites>Мои любимые заказы <span>→</span></button>
       <button type="button" data-open-history>Мои заказы <span>→</span></button>
     </nav>
     <div class="mobile-menu__note">
-      <span>⚡ Готовим после заказа</span>
-      <span>🛍 Самовывоз и доставка</span>
+      <span data-store-status>Открыто до 21:45</span>
+      <span>⚡ Готовим 15–20 минут</span>
     </div>
   </aside>
 
@@ -116,6 +123,15 @@
       </article>
     </section>
 
+    <section class="promo-strip container" aria-label="Акция первого заказа">
+      <div>
+        <p class="eyebrow">ПЕРВЫЙ ЗАКАЗ</p>
+        <h2>−10% по коду JELANI10</h2>
+      </div>
+      <p>Введи промокод в корзине или при оформлении. Акция работает для первого заказа в этом браузере.</p>
+      <button class="secondary-dark-btn" type="button" data-open-cart>Применить код</button>
+    </section>
+
     <section class="popular-section container" id="combos">
       <div class="section-heading">
         <div>
@@ -162,6 +178,21 @@
       <div class="menu-grid" id="menu-grid"></div>
     </section>
 
+    <section class="reviews-section container" id="reviews" aria-label="Отзывы гостей">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">ОТЗЫВЫ</p>
+          <h2>Что говорят гости</h2>
+        </div>
+        <button class="search-toggle" type="button" data-review-action>Оставить отзыв</button>
+      </div>
+      <div class="reviews-grid">
+        <article class="review-card"><strong>Алина</strong><span>★★★★★</span><p>Шаурма сочная, соус не жалеют, заказ собрали быстро.</p></article>
+        <article class="review-card"><strong>Руслан</strong><span>★★★★★</span><p>Комбо удобно собирать: видно мясо, напиток и соусы.</p></article>
+        <article class="review-card"><strong>Мадина</strong><span>★★★★★</span><p>Понравилось, что можно повторить прошлый заказ без лишних шагов.</p></article>
+      </div>
+    </section>
+
     <section class="about-section" id="about">
       <div class="container about-grid">
         <div>
@@ -193,8 +224,28 @@
       <div class="drawer-head"><div><p class="eyebrow">ТВОЙ ЗАКАЗ</p><h2>Корзина</h2></div><button class="icon-button" id="close-cart" type="button">×</button></div>
       <div class="cart-items" id="cart-items"></div>
       <div class="cart-empty" id="cart-empty">Корзина пока пустая.<br>Добавь что-нибудь сочное.</div>
+      <div class="cart-promo" id="cart-promo">
+        <label>Промокод</label>
+        <div class="promo-row">
+          <input id="promo-code" placeholder="JELANI10" autocomplete="off" />
+          <button class="secondary-dark-btn" id="apply-promo" type="button">Применить</button>
+        </div>
+        <p id="promo-message"></p>
+      </div>
+      <div class="cart-upsells" id="cart-upsells" hidden>
+        <p class="eyebrow">ДОБАВИТЬ К ЗАКАЗУ</p>
+        <div class="upsell-grid">
+          <button type="button" data-upsell="fries">Фри <strong>79 ₽</strong></button>
+          <button type="button" data-upsell="drink">Напиток <strong>69 ₽</strong></button>
+          <button type="button" data-upsell="sauce">Соус <strong>35 ₽</strong></button>
+          <button type="button" data-upsell="cheese">Сыр <strong>35 ₽</strong></button>
+        </div>
+      </div>
       <div class="cart-summary">
+        <div><span>Товары</span><strong id="cart-subtotal">0 ₽</strong></div>
+        <div id="cart-discount-row" hidden><span>Скидка</span><strong id="cart-discount">−0 ₽</strong></div>
         <div><span>Итого</span><strong id="cart-total">0 ₽</strong></div>
+        <button class="secondary-dark-btn full-btn" id="save-favorite-btn" type="button">Добавить в избранное</button>
         <button class="primary-btn full-btn" id="checkout-btn" type="button">Оформить заказ <span>→</span></button>
       </div>
     </aside>
@@ -230,12 +281,15 @@
       <div class="drawer-head"><div><p class="eyebrow">ПОЧТИ ГОТОВО</p><h2 id="checkout-title">Оформление заказа</h2></div><button class="icon-button" id="close-checkout" type="button">×</button></div>
       <form id="checkout-form" class="checkout-form">
         <label>Имя<input required name="name" placeholder="Как к вам обращаться"></label>
-        <label>Телефон<input required name="phone" placeholder="+7 900 000-00-00"></label>
-        <label>Способ получения<select name="delivery"><option>Самовывоз</option><option>Доставка</option></select></label>
-        <label>Адрес / комментарий<textarea name="comment" placeholder="Адрес, подъезд, пожелания к заказу"></textarea></label>
+        <label>Телефон<input required name="phone" inputmode="tel" placeholder="+7 900 000-00-00"></label>
+        <label>Способ получения<select required name="delivery" id="delivery-select"><option>Самовывоз</option><option>Доставка</option></select></label>
+        <label id="address-field" hidden>Адрес доставки<input name="address" placeholder="Улица, дом, подъезд, квартира"></label>
+        <label>Способ оплаты<select required name="payment"><option>Наличными</option><option>Переводом</option><option>Картой при получении</option></select></label>
+        <label>Комментарий<textarea name="comment" placeholder="Пожелания к заказу"></textarea></label>
+        <label>Промокод<input name="promo" id="checkout-promo" placeholder="JELANI10" autocomplete="off"></label>
         <div class="checkout-total"><span>К оплате</span><strong id="checkout-total">0 ₽</strong></div>
         <button class="primary-btn full-btn" type="submit">Подтвердить заказ <span>→</span></button>
-        <p class="form-note">Сейчас это тестовое оформление: заказ сохраняется в этом браузере. Для настоящих заказов потом подключим Telegram/сервер.</p>
+        <p class="form-note">Заказ отправится в Telegram, если запущен сервер с токеном бота. Если сервер не подключён, заказ сохранится в этом браузере.</p>
       </form>
     </section>
   </div>
@@ -247,10 +301,25 @@
     </section>
   </div>
 
+  <div class="overlay" id="favorites-overlay" aria-hidden="true">
+    <section class="choice-modal history-modal" role="dialog" aria-modal="true" aria-labelledby="favorites-title">
+      <div class="drawer-head"><div><p class="eyebrow">ЛЮБИМЫЕ ЗАКАЗЫ</p><h2 id="favorites-title">Избранное</h2></div><button class="icon-button" id="close-favorites" type="button">×</button></div>
+      <div id="favorites-list" class="history-list"></div>
+    </section>
+  </div>
+
   <div class="overlay" id="search-overlay" aria-hidden="true">
     <section class="choice-modal search-modal" role="dialog" aria-modal="true" aria-labelledby="search-title">
       <div class="drawer-head"><div><p class="eyebrow">ПОИСК В МЕНЮ</p><h2 id="search-title">Что ищем?</h2></div><button class="icon-button" id="close-search" type="button">×</button></div>
       <input class="search-input" id="search-input" placeholder="Например: шаурма, фри, сырники…" autocomplete="off" />
+      <div class="quick-filters" id="search-filters">
+        <button type="button" data-search-filter="spicy">Острое</button>
+        <button type="button" data-search-filter="beef">С говядиной</button>
+        <button type="button" data-search-filter="under300">До 300 ₽</button>
+        <button type="button" data-search-filter="meatless">Без мяса</button>
+        <button type="button" data-search-filter="duo">На двоих</button>
+        <button type="button" data-search-filter="combo">Комбо</button>
+      </div>
       <div id="search-results" class="search-results"></div>
     </section>
   </div>

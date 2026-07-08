@@ -1,0 +1,4 @@
+.env
+*.log
+server.stdout.log
+server.stderr.log

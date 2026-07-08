@@ -125,7 +125,9 @@ const builderBase = {
 };
 
 let cart = JSON.parse(localStorage.getItem('jelani_cart') || '[]');
+let promoCode = localStorage.getItem('jelani_promo') || '';
 let currentCategory = 'all';
+let activeSearchFilter = '';
 let currentBuilderType = 'shawarma';
 let currentCombo = null;
 let builderState = null;
@@ -133,8 +135,16 @@ let builderState = null;
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 
+function safeJson(key, fallback){
+  try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
+  catch { return fallback; }
+}
 function saveCart(){ localStorage.setItem('jelani_cart', JSON.stringify(cart)); }
-function cartTotal(){ return cart.reduce((sum,item)=>sum + item.price * item.qty,0); }
+function cartSubtotal(){ return cart.reduce((sum,item)=>sum + item.price * item.qty,0); }
+function normalizedPromo(){ return promoCode.trim().toUpperCase(); }
+function firstOrderPromoAvailable(){ return !localStorage.getItem('jelani_first_order_used') && safeJson('jelani_orders', []).length === 0; }
+function promoDiscount(){ return normalizedPromo() === 'JELANI10' && firstOrderPromoAvailable() ? Math.round(cartSubtotal() * 0.1) : 0; }
+function cartTotal(){ return Math.max(0, cartSubtotal() - promoDiscount()); }
 function esc(value){ return String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char])); }
 function showToast(text){ const el=$('#toast'); el.textContent=text; el.classList.add('show'); clearTimeout(showToast.timeout); showToast.timeout=setTimeout(()=>el.classList.remove('show'),2200); }
 function syncPageScroll(){
@@ -147,6 +157,12 @@ function syncPageScroll(){
 }
 function openOverlay(id){ $(id).classList.add('open'); $(id).setAttribute('aria-hidden','false'); syncPageScroll(); }
 function closeOverlay(id){ $(id).classList.remove('open'); $(id).setAttribute('aria-hidden','true'); syncPageScroll(); }
+function closeOverlays(ids){
+  ids.forEach(id => {
+    const overlay = $(id);
+    if(overlay?.classList.contains('open')) closeOverlay(id);
+  });
+}
 function openMobileMenu(){
   const menu = $('#mobile-menu'); const toggle = $('#mobile-menu-toggle');
   if(!menu || !toggle) return;
@@ -187,10 +203,43 @@ function findCombo(id){ return combos.find(item=>item.id===id); }
 function findSet(id){ return sets.find(item=>item.id===id); }
 function makeCartItem({ id, name, price, emoji, details='' }){ return { cartId:`${id}-${Date.now()}-${Math.random().toString(16).slice(2)}`, id, name, price, emoji, details, qty:1 }; }
 function addCart(item){ cart.push(item); saveCart(); renderCart(); showToast('Добавлено в корзину'); }
-function updateCartCount(){ const count=cart.reduce((sum,item)=>sum+item.qty,0); $('#cart-count').textContent=count; $('#mobile-cart-total').textContent=cart.length?formatPrice(cartTotal()):'Корзина пуста'; }
+function promoMessage(){
+  if(!normalizedPromo()) return '';
+  if(normalizedPromo() !== 'JELANI10') return 'Такой промокод не найден';
+  if(!firstOrderPromoAvailable()) return 'JELANI10 действует только на первый заказ';
+  return `Скидка ${formatPrice(promoDiscount())} применена`;
+}
+function syncPromoInputs(){
+  const cartInput = $('#promo-code');
+  const checkoutInput = $('#checkout-promo');
+  if(cartInput && document.activeElement !== cartInput) cartInput.value = normalizedPromo();
+  if(checkoutInput && document.activeElement !== checkoutInput) checkoutInput.value = normalizedPromo();
+  const message = $('#promo-message');
+  if(message) message.textContent = promoMessage();
+}
+function applyPromo(code){
+  promoCode = String(code || '').trim().toUpperCase();
+  if(promoCode) localStorage.setItem('jelani_promo', promoCode);
+  else localStorage.removeItem('jelani_promo');
+  renderCart();
+}
+function updateCartCount(){
+  const count=cart.reduce((sum,item)=>sum+item.qty,0);
+  $('#cart-count').textContent=count;
+  $('#mobile-cart-total').textContent=cart.length?formatPrice(cartTotal()):'Корзина пуста';
+  $('#mobile-cart')?.classList.toggle('is-visible', count > 0);
+  document.body.classList.toggle('has-cart', count > 0);
+}
 function renderCart(){
-  const wrapper=$('#cart-items'), empty=$('#cart-empty'), total=cartTotal();
-  updateCartCount(); $('#cart-total').textContent=formatPrice(total); $('#checkout-total').textContent=formatPrice(total);
+  const wrapper=$('#cart-items'), empty=$('#cart-empty'), subtotal=cartSubtotal(), discount=promoDiscount(), total=cartTotal();
+  updateCartCount();
+  $('#cart-subtotal').textContent=formatPrice(subtotal);
+  $('#cart-total').textContent=formatPrice(total);
+  $('#checkout-total').textContent=formatPrice(total);
+  $('#cart-discount').textContent=`−${formatPrice(discount)}`;
+  $('#cart-discount-row').hidden = discount <= 0;
+  $('#cart-upsells').hidden = cart.length === 0;
+  syncPromoInputs();
   empty.hidden=cart.length>0;
   wrapper.innerHTML=cart.map(item=>`<article class="cart-row"><div class="cart-row__icon">${item.emoji||'🍽️'}</div><div><div class="cart-row__name">${esc(item.name)}</div>${item.details?`<div class="cart-row__details">${esc(item.details)}</div>`:''}</div><div class="cart-row__right"><div class="cart-row__price">${formatPrice(item.price*item.qty)}</div><div class="cart-qty"><button class="qty-button" data-cart-decrease="${item.cartId}" type="button">−</button><span>${item.qty}</span><button class="qty-button" data-cart-increase="${item.cartId}" type="button">+</button></div><button class="cart-remove" data-cart-remove="${item.cartId}" type="button">убрать</button></div></article>`).join('');
   $('#checkout-btn').disabled=!cart.length;
@@ -318,16 +367,189 @@ function addBuilder(){
   addCart(makeCartItem({id:`custom-${currentBuilderType}`,name:`${base.label} — своя сборка`,price,emoji:base.icon,details})); closeOverlay('#builder-overlay');
 }
 
-function openCheckout(){ if(!cart.length){showToast('Сначала добавь позиции в корзину');return;} $('#checkout-total').textContent=formatPrice(cartTotal()); closeOverlay('#cart-overlay');openOverlay('#checkout-overlay'); }
-function completeCheckout(event){
-  event.preventDefault();
-  const form=new FormData(event.currentTarget); const order={id:`JL-${Date.now().toString().slice(-7)}`,date:new Date().toLocaleString('ru-RU'),name:form.get('name'),phone:form.get('phone'),delivery:form.get('delivery'),comment:form.get('comment'),total:cartTotal(),items:cart};
-  const orders=JSON.parse(localStorage.getItem('jelani_orders')||'[]'); orders.unshift(order);localStorage.setItem('jelani_orders',JSON.stringify(orders));cart=[];saveCart();renderCart();event.currentTarget.reset();closeOverlay('#checkout-overlay');showToast(`Заказ ${order.id} сохранён`);
+function addUpsell(kind){
+  const upsells = {
+    fries: { id:'upsell-fries', name:'Картофель фри к заказу', price:79, emoji:'🍟', details:'допродажа' },
+    drink: { id:'upsell-drink', name:'Напиток 0.5', price:69, emoji:'🥤', details:'допродажа' },
+    sauce: { id:'upsell-sauce', name:'Соус на выбор', price:35, emoji:'🥣', details:'допродажа' },
+    cheese: { id:'upsell-cheese', name:'Добавка: сыр', price:35, emoji:'🧀', details:'к основному блюду' }
+  };
+  if(upsells[kind]) addCart(makeCartItem(upsells[kind]));
 }
-function openHistory(){ const orders=JSON.parse(localStorage.getItem('jelani_orders')||'[]'); $('#history-list').innerHTML=orders.length?orders.map(o=>`<article class="history-item"><div class="history-item__top"><span>${o.id}</span><span>${formatPrice(o.total)}</span></div><p>${o.date} · ${esc(o.delivery)} · ${o.items.reduce((s,i)=>s+i.qty,0)} поз.</p></article>`).join(''):'<div class="history-empty">Заказов пока нет.<br>Твои оформленные тестовые заказы появятся здесь.</div>';openOverlay('#history-overlay'); }
+function snapshotItems(items=cart){
+  return items.map(item=>({ id:item.id, name:item.name, price:item.price, emoji:item.emoji, details:item.details, qty:item.qty }));
+}
+function restoreCart(items){
+  cart = (items || []).map(item => ({ ...makeCartItem(item), qty:item.qty || 1 }));
+  saveCart();
+  renderCart();
+  closeOverlays(['#history-overlay', '#favorites-overlay', '#search-overlay']);
+  openOverlay('#cart-overlay');
+  showToast('Заказ добавлен в корзину');
+}
+function saveFavoriteFromCart(){
+  if(!cart.length){ showToast('Корзина пока пустая'); return; }
+  const favorites = safeJson('jelani_favorites', []);
+  favorites.unshift({ id:`FAV-${Date.now().toString().slice(-6)}`, date:new Date().toLocaleString('ru-RU'), total:cartTotal(), items:snapshotItems() });
+  localStorage.setItem('jelani_favorites', JSON.stringify(favorites.slice(0,20)));
+  showToast('Добавлено в любимые заказы');
+}
+function saveFavoriteOrder(orderId){
+  const order = safeJson('jelani_orders', []).find(item=>item.id===orderId);
+  if(!order) return;
+  const favorites = safeJson('jelani_favorites', []);
+  favorites.unshift({ id:`FAV-${Date.now().toString().slice(-6)}`, date:new Date().toLocaleString('ru-RU'), total:order.total, items:snapshotItems(order.items) });
+  localStorage.setItem('jelani_favorites', JSON.stringify(favorites.slice(0,20)));
+  showToast('Заказ добавлен в избранное');
+}
+function updateDeliveryFields(){
+  const select = $('#delivery-select');
+  const field = $('#address-field');
+  const input = field?.querySelector('input');
+  const needsAddress = select?.value === 'Доставка';
+  if(field) field.hidden = !needsAddress;
+  if(input) input.required = needsAddress;
+}
+function openCheckout(){
+  if(!cart.length){showToast('Сначала добавь позиции в корзину');return;}
+  $('#checkout-total').textContent=formatPrice(cartTotal());
+  syncPromoInputs();
+  updateDeliveryFields();
+  closeOverlay('#cart-overlay');
+  openOverlay('#checkout-overlay');
+}
+async function sendOrderToServer(order){
+  const response = await fetch('/api/order', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body:JSON.stringify(order)
+  });
+  const data = await response.json().catch(()=>({ ok:false }));
+  if(!response.ok || data.ok === false) throw new Error(data.error || 'Telegram не подключён');
+  return data;
+}
+async function completeCheckout(event){
+  event.preventDefault();
+  const formEl = event.currentTarget;
+  const submit = formEl.querySelector('button[type="submit"]');
+  const form = new FormData(formEl);
+  promoCode = String(form.get('promo') || promoCode || '').trim().toUpperCase();
+  localStorage.setItem('jelani_promo', promoCode);
+  const discount = promoDiscount();
+  const order = {
+    id:`JL-${Date.now().toString().slice(-7)}`,
+    status:'Заказ создан',
+    date:new Date().toLocaleString('ru-RU'),
+    name:form.get('name'),
+    phone:form.get('phone'),
+    delivery:form.get('delivery'),
+    address:form.get('address') || '',
+    payment:form.get('payment'),
+    comment:form.get('comment') || '',
+    promo:normalizedPromo(),
+    subtotal:cartSubtotal(),
+    discount,
+    total:cartTotal(),
+    items:snapshotItems()
+  };
+
+  submit.disabled = true;
+  submit.textContent = 'Отправляем заказ...';
+  let telegramSent = false;
+  try {
+    await sendOrderToServer(order);
+    telegramSent = true;
+    order.status = 'Отправлен в Telegram';
+  } catch (error) {
+    order.status = 'Сохранён локально';
+    order.telegramError = error.message;
+  }
+
+  const orders=safeJson('jelani_orders', []);
+  orders.unshift(order);
+  localStorage.setItem('jelani_orders', JSON.stringify(orders.slice(0,30)));
+  if(discount > 0 && normalizedPromo() === 'JELANI10') localStorage.setItem('jelani_first_order_used','true');
+  promoCode='';
+  localStorage.removeItem('jelani_promo');
+  cart=[];
+  saveCart();
+  renderCart();
+  formEl.reset();
+  updateDeliveryFields();
+  submit.disabled = false;
+  submit.innerHTML = 'Подтвердить заказ <span>→</span>';
+  closeOverlay('#checkout-overlay');
+  showToast(telegramSent ? `Заказ ${order.id} отправлен в Telegram` : `Заказ ${order.id} сохранён. Подключи сервер для Telegram`);
+}
+function orderSummary(order){
+  const count=(order.items||[]).reduce((sum,item)=>sum+(item.qty||1),0);
+  const delivery = order.delivery ? ` · ${esc(order.delivery)}` : '';
+  const status = order.status || (order.delivery ? 'Заказ создан' : 'Любимый заказ');
+  return `${order.date}${delivery} · ${count} поз. · ${esc(status)}`;
+}
+function historyTemplate(order, favorite=false){
+  return `<article class="history-item">
+    <div class="history-item__top"><span>${esc(order.id)}</span><span>${formatPrice(order.total)}</span></div>
+    <p>${orderSummary(order)}</p>
+    <div class="history-item__actions">
+      <button type="button" data-repeat-${favorite ? 'favorite' : 'order'}="${order.id}">Заказать снова</button>
+      ${favorite ? '' : `<button type="button" data-favorite-order="${order.id}">В избранное</button>`}
+    </div>
+  </article>`;
+}
+function openHistory(){
+  const orders=safeJson('jelani_orders', []);
+  $('#history-list').innerHTML=orders.length?orders.map(o=>historyTemplate(o)).join(''):'<div class="history-empty">Заказов пока нет.<br>Оформленные заказы появятся здесь.</div>';
+  closeOverlays(['#favorites-overlay', '#cart-overlay']);
+  openOverlay('#history-overlay');
+}
+function openFavorites(){
+  const favorites=safeJson('jelani_favorites', []);
+  $('#favorites-list').innerHTML=favorites.length?favorites.map(o=>historyTemplate(o,true)).join(''):'<div class="history-empty">Любимых заказов пока нет.<br>Сохрани корзину или заказ из истории.</div>';
+  closeOverlays(['#history-overlay', '#cart-overlay']);
+  openOverlay('#favorites-overlay');
+}
+function repeatOrder(orderId){
+  const order = safeJson('jelani_orders', []).find(item=>item.id===orderId);
+  if(order) restoreCart(order.items);
+}
+function repeatFavorite(orderId){
+  const order = safeJson('jelani_favorites', []).find(item=>item.id===orderId);
+  if(order) restoreCart(order.items);
+}
+function searchMatches(item, clean){
+  return !clean || `${item.name} ${item.description || ''} ${item.category || ''} ${(item.tags||[]).join(' ')}`.toLowerCase().includes(clean);
+}
+function filterMenuItem(item, filter){
+  const text = `${item.name} ${item.description} ${(item.tags||[]).join(' ')}`.toLowerCase();
+  if(filter === 'spicy') return text.includes('чили') || text.includes('халапеньо') || text.includes('остр');
+  if(filter === 'beef') return text.includes('говядин');
+  if(filter === 'under300') return item.price <= 300;
+  if(filter === 'meatless') return !/(куриц|говядин|мяс|крыл|наггет|бургер|донер|шаурм|бекон)/.test(text);
+  return true;
+}
 function renderSearch(query=''){
-  const clean=query.trim().toLowerCase(); const list=!clean?menuItems.slice(0,8):menuItems.filter(item=>`${item.name} ${item.description} ${item.category} ${(item.tags||[]).join(' ')}`.toLowerCase().includes(clean));
-  $('#search-results').innerHTML=list.length?list.map(item=>`<article class="search-item"><div class="search-item__main"><div class="search-item__icon">${item.emoji}</div><div><div class="search-item__name">${item.name}</div><div class="search-item__category">${categoryMeta.find(x=>x.id===item.category)?.label||''} · ${formatPrice(item.price)}</div></div></div><button type="button" data-add="${item.id}">+</button></article>`).join(''):'<div class="history-empty">Ничего не нашли. Попробуй другое слово.</div>';
+  const clean=query.trim().toLowerCase();
+  let list;
+  if(activeSearchFilter === 'combo') list = combos.filter(item=>searchMatches(item, clean)).map(item=>({...item,type:'combo'}));
+  else if(activeSearchFilter === 'duo') list = sets.filter(item=>searchMatches(item, clean)).map(item=>({...item,type:'set'}));
+  else list = menuItems.filter(item=>searchMatches(item, clean) && filterMenuItem(item, activeSearchFilter)).slice(0, clean || activeSearchFilter ? 40 : 8).map(item=>({...item,type:'menu'}));
+
+  $$('#search-filters button').forEach(button=>button.classList.toggle('active', button.dataset.searchFilter === activeSearchFilter));
+  $('#search-results').innerHTML=list.length?list.map(item=>{
+    const meta = item.type === 'combo' ? 'Комбо' : item.type === 'set' ? 'Сет' : (categoryMeta.find(x=>x.id===item.category)?.label||'');
+    const action = item.type === 'combo' ? `data-combo="${item.id}"` : item.type === 'set' ? `data-set="${item.id}"` : `data-add="${item.id}"`;
+    return `<article class="search-item"><div class="search-item__main"><div class="search-item__icon">${item.emoji}</div><div><div class="search-item__name">${item.name}</div><div class="search-item__category">${meta} · ${formatPrice(item.price)}</div></div></div><button type="button" ${action}>+</button></article>`;
+  }).join(''):'<div class="history-empty">Ничего не нашли. Попробуй другое слово или фильтр.</div>';
+}
+
+function updateStoreStatus(){
+  const now = new Date();
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const openAt = 9 * 60;
+  const closeAt = 21 * 60 + 45;
+  const text = minutes >= openAt && minutes < closeAt ? 'Открыто до 21:45' : 'Заказы принимаем с 9:00';
+  $$('[data-store-status]').forEach(item=>{ item.textContent = text; });
 }
 
 
@@ -408,12 +630,20 @@ function bindEvents(){
   document.addEventListener('click',event=>{
     const target=event.target.closest('button,[data-open-builder],[data-combo],[data-quick-combo],[data-add],[data-set],[data-category],[data-hero-slide]'); if(!target)return;
     if(target.dataset.heroSlide !== undefined){ setHeroSlide(target.dataset.heroSlide); startHeroCarousel(); }
+    if(target.dataset.openCart !== undefined) openOverlay('#cart-overlay');
     if(target.dataset.openBuilder) openBuilder(target.dataset.openBuilder);
     if(target.dataset.combo) openCombo(target.dataset.combo);
     if(target.dataset.quickCombo) openCombo(target.dataset.quickCombo);
     if(target.dataset.category){currentCategory=target.dataset.category;renderCategories();renderMenu();}
     if(target.dataset.add){const item=findMenuItem(target.dataset.add);if(item)addCart(makeCartItem({id:item.id,name:item.name,price:item.price,emoji:item.emoji,details:''}));}
     if(target.dataset.set){const item=findSet(target.dataset.set);if(item)addCart(makeCartItem({id:item.id,name:item.name,price:item.price,emoji:item.emoji,details:item.size}));}
+    if(target.dataset.upsell) addUpsell(target.dataset.upsell);
+    if(target.dataset.repeatOrder) repeatOrder(target.dataset.repeatOrder);
+    if(target.dataset.repeatFavorite) repeatFavorite(target.dataset.repeatFavorite);
+    if(target.dataset.favoriteOrder) saveFavoriteOrder(target.dataset.favoriteOrder);
+    if(target.dataset.openFavorites !== undefined){closeMobileMenu();openFavorites();}
+    if(target.dataset.searchFilter){activeSearchFilter = activeSearchFilter === target.dataset.searchFilter ? '' : target.dataset.searchFilter; renderSearch($('#search-input').value);}
+    if(target.dataset.reviewAction) showToast('Отзывы можно собирать через Telegram или форму после запуска');
     if(target.dataset.cartIncrease)changeCart(target.dataset.cartIncrease,1);
     if(target.dataset.cartDecrease)changeCart(target.dataset.cartDecrease,-1);
     if(target.dataset.cartRemove){cart=cart.filter(item=>item.cartId!==target.dataset.cartRemove);saveCart();renderCart();}
@@ -423,8 +653,13 @@ function bindEvents(){
   $('#close-mobile-menu')?.addEventListener('click',closeMobileMenu);
   $$('.mobile-menu a').forEach(link=>link.addEventListener('click',closeMobileMenu));
   $$('[data-open-history]').forEach(button=>button.addEventListener('click',()=>{closeMobileMenu();openHistory();}));
-  $('#close-builder').addEventListener('click',()=>closeOverlay('#builder-overlay')); $('#close-combo').addEventListener('click',()=>closeOverlay('#combo-overlay')); $('#close-checkout').addEventListener('click',()=>closeOverlay('#checkout-overlay')); $('#close-history').addEventListener('click',()=>closeOverlay('#history-overlay')); $('#close-search').addEventListener('click',()=>closeOverlay('#search-overlay'));
-  $('#checkout-btn').addEventListener('click',openCheckout); $('#add-combo-to-cart').addEventListener('click',addCombo); $('#add-builder-to-cart').addEventListener('click',addBuilder); $('#checkout-form').addEventListener('submit',completeCheckout); $('#order-history-btn').addEventListener('click',openHistory);
+  $('#favorites-btn')?.addEventListener('click',openFavorites);
+  $('#close-builder').addEventListener('click',()=>closeOverlay('#builder-overlay')); $('#close-combo').addEventListener('click',()=>closeOverlay('#combo-overlay')); $('#close-checkout').addEventListener('click',()=>closeOverlay('#checkout-overlay')); $('#close-history').addEventListener('click',()=>closeOverlay('#history-overlay')); $('#close-favorites').addEventListener('click',()=>closeOverlay('#favorites-overlay')); $('#close-search').addEventListener('click',()=>closeOverlay('#search-overlay'));
+  $('#checkout-btn').addEventListener('click',openCheckout); $('#save-favorite-btn').addEventListener('click',saveFavoriteFromCart); $('#add-combo-to-cart').addEventListener('click',addCombo); $('#add-builder-to-cart').addEventListener('click',addBuilder); $('#checkout-form').addEventListener('submit',completeCheckout); $('#order-history-btn').addEventListener('click',openHistory);
+  $('#apply-promo').addEventListener('click',()=>applyPromo($('#promo-code').value));
+  $('#promo-code').addEventListener('keydown',event=>{ if(event.key === 'Enter'){ event.preventDefault(); applyPromo(event.currentTarget.value); } });
+  $('#checkout-promo').addEventListener('input',event=>applyPromo(event.currentTarget.value));
+  $('#delivery-select').addEventListener('change',updateDeliveryFields);
   $('#open-search').addEventListener('click',()=>{renderSearch();openOverlay('#search-overlay');setTimeout(()=>$('#search-input').focus(),100)}); $('#search-input').addEventListener('input',e=>renderSearch(e.target.value));
   $('#builder-form').addEventListener('change',()=>{readBuilder();renderBuilder();});
   $('#combo-form').addEventListener('change', event => {
@@ -438,5 +673,16 @@ function bindEvents(){
   $$('.overlay').forEach(overlay=>overlay.addEventListener('click',e=>{if(e.target===overlay)closeOverlay('#'+overlay.id)}));
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMobileMenu();$$('.overlay.open').forEach(el=>closeOverlay('#'+el.id));}});
 }
-function init(){renderCategories();renderCombos();renderSets();renderMenu();renderCart();bindEvents();initHeroCarousel();}
+function init(){
+  renderCategories();
+  renderCombos();
+  renderSets();
+  renderMenu();
+  renderCart();
+  updateDeliveryFields();
+  updateStoreStatus();
+  bindEvents();
+  initHeroCarousel();
+  window.setInterval(updateStoreStatus, 60000);
+}
 init();
