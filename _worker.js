@@ -9,6 +9,14 @@ function json(data, status = 200) {
   });
 }
 
+class ValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ValidationError';
+    this.status = 400;
+  }
+}
+
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>"']/g, char => ({
     '&': '&amp;',
@@ -37,11 +45,11 @@ function validateRussianPhone(phone) {
 }
 
 function validateOrder(order) {
-  if (!order || typeof order !== 'object') throw new Error('Некорректный заказ');
-  if (!order.name) throw new Error('Нужно указать имя');
-  if (!validateRussianPhone(order.phone)) throw new Error('Укажите российский мобильный номер в формате +7 9XX XXX-XX-XX');
-  if (!Array.isArray(order.items) || order.items.length === 0) throw new Error('Корзина пустая');
-  if (order.delivery === 'Доставка' && !order.address) throw new Error('Нужен адрес доставки');
+  if (!order || typeof order !== 'object') throw new ValidationError('Некорректный заказ');
+  if (!order.name) throw new ValidationError('Нужно указать имя');
+  if (!validateRussianPhone(order.phone)) throw new ValidationError('Укажите российский мобильный номер в формате +7 9XX XXX-XX-XX');
+  if (!Array.isArray(order.items) || order.items.length === 0) throw new ValidationError('Корзина пустая');
+  if (order.delivery === 'Доставка' && !order.address) throw new ValidationError('Нужен адрес доставки');
 }
 
 function orderMessage(order) {
@@ -103,10 +111,10 @@ async function telegram(env, method, payload) {
 }
 
 async function handleOrder(request, env) {
-  if (!env.TELEGRAM_CHAT_ID) throw new Error('TELEGRAM_CHAT_ID не задан');
-
   const order = await request.json();
   validateOrder(order);
+
+  if (!env.TELEGRAM_CHAT_ID) throw new Error('TELEGRAM_CHAT_ID не задан');
 
   const result = await telegram(env, 'sendMessage', {
     chat_id: env.TELEGRAM_CHAT_ID,
@@ -171,7 +179,8 @@ export default {
 
       return new Response('Not found', { status: 404 });
     } catch (error) {
-      return json({ ok: false, error: error.message }, 500);
+      const status = error instanceof SyntaxError ? 400 : error.status || 500;
+      return json({ ok: false, error: error.message }, status);
     }
   }
 };
