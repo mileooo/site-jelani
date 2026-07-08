@@ -281,7 +281,7 @@
       <div class="drawer-head"><div><p class="eyebrow">ПОЧТИ ГОТОВО</p><h2 id="checkout-title">Оформление заказа</h2></div><button class="icon-button" id="close-checkout" type="button">×</button></div>
       <form id="checkout-form" class="checkout-form">
         <label>Имя<input required name="name" placeholder="Как к вам обращаться"></label>
-        <label>Телефон<input required name="phone" inputmode="tel" placeholder="+7 900 000-00-00"></label>
+        <label>Телефон<input required name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 900 000-00-00" pattern="^(\+7|8)\s?9\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}$" title="Введите российский мобильный номер: +7 9XX XXX-XX-XX"></label>
         <label>Способ получения<select required name="delivery" id="delivery-select"><option>Самовывоз</option><option>Доставка</option></select></label>
         <label id="address-field" hidden>Адрес доставки<input name="address" placeholder="Улица, дом, подъезд, квартира"></label>
         <label>Способ оплаты<select required name="payment"><option>Наличными</option><option>Переводом</option><option>Картой при получении</option></select></label>

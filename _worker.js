@@ -102,26 +102,76 @@ async function telegram(env, method, payload) {
   return data.result;
 }
 
-export async function onRequestPost({ request, env }) {
-  try {
-    if (!env.TELEGRAM_CHAT_ID) throw new Error('TELEGRAM_CHAT_ID не задан');
+async function handleOrder(request, env) {
+  if (!env.TELEGRAM_CHAT_ID) throw new Error('TELEGRAM_CHAT_ID не задан');
 
-    const order = await request.json();
-    validateOrder(order);
+  const order = await request.json();
+  validateOrder(order);
 
-    const result = await telegram(env, 'sendMessage', {
-      chat_id: env.TELEGRAM_CHAT_ID,
-      text: orderMessage(order),
-      parse_mode: 'HTML',
-      reply_markup: statusKeyboard(order)
-    });
+  const result = await telegram(env, 'sendMessage', {
+    chat_id: env.TELEGRAM_CHAT_ID,
+    text: orderMessage(order),
+    parse_mode: 'HTML',
+    reply_markup: statusKeyboard(order)
+  });
 
-    return json({ ok: true, messageId: result.message_id });
-  } catch (error) {
-    return json({ ok: false, error: error.message }, 500);
+  return json({ ok: true, messageId: result.message_id });
+}
+
+async function handleTelegramWebhook(request, env) {
+  const update = await request.json();
+  const query = update.callback_query;
+
+  if (!query?.data?.startsWith('o:')) {
+    return json({ ok: true });
   }
+
+  const [, orderId, flow, step] = query.data.split(':');
+  const pickup = ['Заказ принят', 'Готовим', 'Ожидает самовывоза', 'Выдан', 'Завершён'];
+  const delivery = ['Заказ принят', 'Готовим', 'Передан курьеру', 'В пути', 'Завершён'];
+  const labels = flow === 'delivery' ? delivery : pickup;
+  const canceled = step === 'cancel';
+  const index = Number(step);
+  const text = canceled ? `Заказ ${orderId} отменён` : `Статус ${orderId}: ${labels[index - 1] || 'обновлён'}`;
+
+  await telegram(env, 'answerCallbackQuery', {
+    callback_query_id: query.id,
+    text
+  });
+
+  if (query.message && !canceled) {
+    await telegram(env, 'editMessageReplyMarkup', {
+      chat_id: query.message.chat.id,
+      message_id: query.message.message_id,
+      reply_markup: statusKeyboard({ id: orderId, delivery: flow === 'delivery' ? 'Доставка' : 'Самовывоз' }, index)
+    });
+  }
+
+  return json({ ok: true });
 }
 
-export function onRequest() {
-  return json({ ok: false, error: 'Method not allowed' }, 405);
-}
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    try {
+      if (url.pathname === '/api/order') {
+        if (request.method !== 'POST') return json({ ok: false, error: 'Method not allowed' }, 405);
+        return await handleOrder(request, env);
+      }
+
+      if (url.pathname === '/api/telegram-webhook') {
+        if (request.method !== 'POST') return json({ ok: false, error: 'Method not allowed' }, 405);
+        return await handleTelegramWebhook(request, env);
+      }
+
+      if (env.ASSETS) {
+        return env.ASSETS.fetch(request);
+      }
+
+      return new Response('Not found', { status: 404 });
+    } catch (error) {
+      return json({ ok: false, error: error.message }, 500);
+    }
+  }
+};

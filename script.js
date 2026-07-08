@@ -410,6 +410,25 @@ function updateDeliveryFields(){
   if(field) field.hidden = !needsAddress;
   if(input) input.required = needsAddress;
 }
+function normalizeRussianPhone(phone){
+  const digits = String(phone || '').replace(/\D/g, '');
+  if(digits.length === 11 && digits.startsWith('8')) return `7${digits.slice(1)}`;
+  return digits;
+}
+function isRussianMobilePhone(phone){
+  return /^79\d{9}$/.test(normalizeRussianPhone(phone));
+}
+function formatRussianPhone(phone){
+  const normalized = normalizeRussianPhone(phone);
+  if(!/^79\d{9}$/.test(normalized)) return phone;
+  return `+7 ${normalized.slice(1,4)} ${normalized.slice(4,7)}-${normalized.slice(7,9)}-${normalized.slice(9)}`;
+}
+function validatePhoneField(input){
+  if(!input) return false;
+  const valid = isRussianMobilePhone(input.value);
+  input.setCustomValidity(valid ? '' : 'Введите российский мобильный номер: +7 9XX XXX-XX-XX');
+  return valid;
+}
 function openCheckout(){
   if(!cart.length){showToast('Сначала добавь позиции в корзину');return;}
   $('#checkout-total').textContent=formatPrice(cartTotal());
@@ -433,6 +452,13 @@ async function completeCheckout(event){
   const formEl = event.currentTarget;
   const submit = formEl.querySelector('button[type="submit"]');
   const form = new FormData(formEl);
+  const phoneInput = formEl.querySelector('input[name="phone"]');
+  if(!validatePhoneField(phoneInput)){
+    phoneInput.reportValidity();
+    showToast('Введите российский мобильный номер');
+    return;
+  }
+  phoneInput.value = formatRussianPhone(phoneInput.value);
   promoCode = String(form.get('promo') || promoCode || '').trim().toUpperCase();
   localStorage.setItem('jelani_promo', promoCode);
   const discount = promoDiscount();
@@ -441,7 +467,7 @@ async function completeCheckout(event){
     status:'Заказ создан',
     date:new Date().toLocaleString('ru-RU'),
     name:form.get('name'),
-    phone:form.get('phone'),
+    phone:phoneInput.value,
     delivery:form.get('delivery'),
     address:form.get('address') || '',
     payment:form.get('payment'),
@@ -660,6 +686,11 @@ function bindEvents(){
   $('#promo-code').addEventListener('keydown',event=>{ if(event.key === 'Enter'){ event.preventDefault(); applyPromo(event.currentTarget.value); } });
   $('#checkout-promo').addEventListener('input',event=>applyPromo(event.currentTarget.value));
   $('#delivery-select').addEventListener('change',updateDeliveryFields);
+  const phoneInput = $('#checkout-form input[name="phone"]');
+  phoneInput.addEventListener('input',event=>{ event.currentTarget.setCustomValidity(''); });
+  phoneInput.addEventListener('blur',event=>{
+    if(isRussianMobilePhone(event.currentTarget.value)) event.currentTarget.value = formatRussianPhone(event.currentTarget.value);
+  });
   $('#open-search').addEventListener('click',()=>{renderSearch();openOverlay('#search-overlay');setTimeout(()=>$('#search-input').focus(),100)}); $('#search-input').addEventListener('input',e=>renderSearch(e.target.value));
   $('#builder-form').addEventListener('change',()=>{readBuilder();renderBuilder();});
   $('#combo-form').addEventListener('change', event => {
