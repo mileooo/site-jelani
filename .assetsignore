@@ -1,0 +1,12 @@
+.env
+.env.*
+.git
+.gitignore
+.assetsignore
+wrangler.toml
+_worker.js
+functions/
+server.js
+README-JELANI.md
+*.log
+node_modules/
