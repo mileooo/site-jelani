@@ -131,6 +131,28 @@ let activeSearchFilter = '';
 let currentBuilderType = 'shawarma';
 let currentCombo = null;
 let builderState = null;
+let orderStatusTimer = null;
+
+const PROFILE_KEY = 'jelani_profile';
+const ACTIVE_ORDERS_KEY = 'jelani_active_orders';
+const TRACKER_HIDE_DELAY = 14000;
+const STATUS_STEPS = {
+  pickup: [
+    { label: 'Заказ создан', detail: 'Заказ ушел на кухню.' },
+    { label: 'Принят', detail: 'Команда JELANI подтвердила заказ.' },
+    { label: 'Готовим', detail: 'Заказ сейчас готовится.' },
+    { label: 'Готов к самовывозу', detail: 'Заказ можно забирать.' },
+    { label: 'Получен', detail: 'Заказ выдан клиенту.', terminal: true }
+  ],
+  delivery: [
+    { label: 'Заказ создан', detail: 'Заказ ушел на кухню.' },
+    { label: 'Принят', detail: 'Команда JELANI подтвердила заказ.' },
+    { label: 'Готовим', detail: 'Заказ сейчас готовится.' },
+    { label: 'Передан курьеру', detail: 'Заказ передан в доставку.' },
+    { label: 'В пути', detail: 'Курьер едет к клиенту.' },
+    { label: 'Получен', detail: 'Заказ доставлен клиенту.', terminal: true }
+  ]
+};
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -143,7 +165,7 @@ function saveCart(){ localStorage.setItem('jelani_cart', JSON.stringify(cart)); 
 function cartSubtotal(){ return cart.reduce((sum,item)=>sum + item.price * item.qty,0); }
 function normalizedPromo(){ return promoCode.trim().toUpperCase(); }
 function firstOrderPromoAvailable(){ return !localStorage.getItem('jelani_first_order_used') && safeJson('jelani_orders', []).length === 0; }
-function promoDiscount(){ return normalizedPromo() === 'JELANI10' && firstOrderPromoAvailable() ? Math.round(cartSubtotal() * 0.1) : 0; }
+function promoDiscount(){ return isAuthorized() && normalizedPromo() === 'JELANI10' && firstOrderPromoAvailable() ? Math.round(cartSubtotal() * 0.1) : 0; }
 function cartTotal(){ return Math.max(0, cartSubtotal() - promoDiscount()); }
 function esc(value){ return String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char])); }
 function showToast(text){ const el=$('#toast'); el.textContent=text; el.classList.add('show'); clearTimeout(showToast.timeout); showToast.timeout=setTimeout(()=>el.classList.remove('show'),2200); }
@@ -180,6 +202,218 @@ function closeMobileMenu(){
 function toggleMobileMenu(){ $('#mobile-menu')?.classList.contains('is-open') ? closeMobileMenu() : openMobileMenu(); }
 function visualClass(visual){ return `visual-${visual || 'orange'}`; }
 
+function getProfile(){
+  const profile = safeJson(PROFILE_KEY, null);
+  return profile && typeof profile === 'object' ? profile : null;
+}
+
+function isAuthorized(){
+  const profile = getProfile();
+  return Boolean(profile?.name && isRussianMobilePhone(profile.phone));
+}
+
+function profilePayload(){
+  const profile = getProfile();
+  return {
+    authorized: isAuthorized(),
+    name: profile?.name || '',
+    phone: profile?.phone || ''
+  };
+}
+
+function saveProfile(profile){
+  const name = String(profile?.name || '').trim();
+  const phone = String(profile?.phone || '').trim();
+  if(!name) throw new Error('Введите имя');
+  if(!isRussianMobilePhone(phone)) throw new Error('Введите российский мобильный номер');
+
+  localStorage.setItem(PROFILE_KEY, JSON.stringify({
+    name,
+    phone: formatRussianPhone(phone),
+    updatedAt: new Date().toISOString()
+  }));
+}
+
+function createTrackingToken(){
+  const bytes = new Uint8Array(16);
+  if(window.crypto?.getRandomValues) window.crypto.getRandomValues(bytes);
+  else bytes.forEach((_, index)=>{ bytes[index] = Math.floor(Math.random() * 256); });
+  return [...bytes].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+
+function flowForDelivery(delivery){
+  return String(delivery || '').toLowerCase().includes('достав') ? 'delivery' : 'pickup';
+}
+
+function activeOrders(){
+  return safeJson(ACTIVE_ORDERS_KEY, []);
+}
+
+function saveActiveOrders(list){
+  localStorage.setItem(ACTIVE_ORDERS_KEY, JSON.stringify(list.slice(0,5)));
+}
+
+function currentActiveOrders(){
+  const now = Date.now();
+  const list = activeOrders();
+  const filtered = list.filter(order => !order.hideAfter || order.hideAfter > now);
+  if(filtered.length !== list.length) saveActiveOrders(filtered);
+  return filtered;
+}
+
+function localStatusFromOrder(order){
+  const flow = flowForDelivery(order.delivery);
+  return {
+    id: order.id,
+    flow,
+    delivery: order.delivery,
+    statusIndex: 0,
+    status: 'Заказ создан',
+    detail: 'Заказ ушел на кухню.',
+    steps: STATUS_STEPS[flow],
+    terminal: false,
+    canceled: false,
+    total: order.total || 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function normalizeStatus(status, trackingToken=''){
+  const flow = status?.flow === 'delivery' ? 'delivery' : 'pickup';
+  return {
+    ...status,
+    flow,
+    steps: Array.isArray(status?.steps) ? status.steps : STATUS_STEPS[flow],
+    trackingToken: trackingToken || status?.trackingToken || ''
+  };
+}
+
+function updateStoredOrderStatus(status){
+  if(!status?.id) return;
+  const orders = safeJson('jelani_orders', []);
+  const next = orders.map(order => order.id === status.id ? {
+    ...order,
+    status: status.status,
+    statusDetail: status.detail,
+    statusIndex: status.statusIndex,
+    terminal: status.terminal,
+    canceled: status.canceled,
+    updatedAt: status.updatedAt
+  } : order);
+  localStorage.setItem('jelani_orders', JSON.stringify(next));
+}
+
+function upsertActiveOrder(status, trackingToken=''){
+  if(!status?.id) return;
+  const normalized = normalizeStatus(status, trackingToken);
+  const existing = activeOrders().find(order => order.id === normalized.id);
+  const nextOrder = {
+    ...existing,
+    ...normalized,
+    trackingToken: normalized.trackingToken || existing?.trackingToken || '',
+    hideAfter: normalized.terminal ? Date.now() + TRACKER_HIDE_DELAY : null
+  };
+  const next = [nextOrder, ...activeOrders().filter(order => order.id !== normalized.id)];
+  saveActiveOrders(next);
+  updateStoredOrderStatus(nextOrder);
+  renderOrderTracker();
+  renderAccount();
+}
+
+function dismissActiveOrder(orderId){
+  const list = currentActiveOrders().filter(order => order.id !== orderId);
+  saveActiveOrders(list);
+  renderOrderTracker();
+  renderAccount();
+}
+
+function renderOrderTracker(){
+  const tracker = $('#order-tracker');
+  if(!tracker) return;
+
+  const order = currentActiveOrders()[0];
+  tracker.hidden = !order;
+  if(!order) return;
+
+  const steps = order.steps || STATUS_STEPS[order.flow] || STATUS_STEPS.pickup;
+  $('#tracker-title').textContent = `Заказ ${order.id}`;
+  $('#tracker-status').textContent = order.status || 'Заказ создан';
+  $('#tracker-detail').textContent = order.detail || 'Статус обновляется автоматически.';
+  $('#tracker-steps').innerHTML = steps.map((step, index)=>{
+    const done = index < Number(order.statusIndex);
+    const current = index === Number(order.statusIndex);
+    return `<li class="${done ? 'is-done' : current ? 'is-current' : ''}"><span>${index + 1}</span><strong>${esc(step.label)}</strong></li>`;
+  }).join('');
+  $('#tracker-received').hidden = !order.terminal;
+
+  if(order.terminal && order.hideAfter){
+    window.setTimeout(renderOrderTracker, Math.max(300, order.hideAfter - Date.now() + 50));
+  }
+}
+
+async function syncActiveOrderStatuses(){
+  const orders = currentActiveOrders().filter(order => order.trackingToken && !order.terminal);
+  if(!orders.length) return;
+
+  await Promise.all(orders.map(async order => {
+    try {
+      const response = await fetch(`/api/order-status?id=${encodeURIComponent(order.id)}&track=${encodeURIComponent(order.trackingToken)}`);
+      if(!response.ok) return;
+      const data = await response.json();
+      if(data.ok && data.status) upsertActiveOrder(data.status, order.trackingToken);
+    } catch {
+      // Статус обновится при следующем опросе.
+    }
+  }));
+}
+
+function startStatusPolling(){
+  if(orderStatusTimer) window.clearInterval(orderStatusTimer);
+  syncActiveOrderStatuses();
+  orderStatusTimer = window.setInterval(syncActiveOrderStatuses, 10000);
+}
+
+function accountStatsTemplate(){
+  const orders = safeJson('jelani_orders', []);
+  const favorites = safeJson('jelani_favorites', []);
+  const spent = orders.reduce((sum, order)=>sum + Number(order.total || 0), 0);
+  return [
+    ['Заказы', orders.length],
+    ['Потрачено', formatPrice(spent)],
+    ['Любимые', favorites.length]
+  ].map(([label, value])=>`<div class="account-stat"><span>${label}</span><strong>${value}</strong></div>`).join('');
+}
+
+function renderAccount(){
+  const form = $('#account-form');
+  if(!form) return;
+
+  const profile = getProfile();
+  const nameInput = $('#account-name');
+  const phoneInput = $('#account-phone');
+
+  if(nameInput && document.activeElement !== nameInput) nameInput.value = profile?.name || '';
+  if(phoneInput && document.activeElement !== phoneInput) phoneInput.value = profile?.phone || '';
+
+  $('#account-state').textContent = isAuthorized()
+    ? 'Профиль сохранен. Промокоды доступны.'
+    : 'Сохраните имя и российский номер, чтобы использовать промокоды.';
+  $('#account-stats').innerHTML = accountStatsTemplate();
+
+  const active = currentActiveOrders()[0];
+  const activeEl = $('#account-active');
+  if(activeEl){
+    activeEl.hidden = !active;
+    activeEl.innerHTML = active ? `<strong>${esc(active.id)} - ${esc(active.status || 'Заказ создан')}</strong><p>${esc(active.detail || 'Статус обновляется автоматически.')}</p>` : '';
+  }
+
+  const orders = safeJson('jelani_orders', []);
+  $('#history-list').innerHTML = orders.length
+    ? orders.map(o=>historyTemplate(o)).join('')
+    : '<div class="history-empty">Заказов пока нет.<br>Оформленные заказы появятся здесь.</div>';
+}
+
 function renderCategories(){
   $('#category-tabs').innerHTML = categoryMeta.map(c=>`<button class="category-tab ${currentCategory===c.id?'active':''}" data-category="${c.id}" type="button">${c.label}</button>`).join('');
 }
@@ -205,6 +439,7 @@ function makeCartItem({ id, name, price, emoji, details='' }){ return { cartId:`
 function addCart(item){ cart.push(item); saveCart(); renderCart(); showToast('Добавлено в корзину'); }
 function promoMessage(){
   if(!normalizedPromo()) return '';
+  if(!isAuthorized()) return 'Войдите в личный кабинет, чтобы применить промокод';
   if(normalizedPromo() !== 'JELANI10') return 'Такой промокод не найден';
   if(!firstOrderPromoAvailable()) return 'JELANI10 действует только на первый заказ';
   return `Скидка ${formatPrice(promoDiscount())} применена`;
@@ -212,12 +447,32 @@ function promoMessage(){
 function syncPromoInputs(){
   const cartInput = $('#promo-code');
   const checkoutInput = $('#checkout-promo');
+  const applyButton = $('#apply-promo');
+  const locked = !isAuthorized();
   if(cartInput && document.activeElement !== cartInput) cartInput.value = normalizedPromo();
   if(checkoutInput && document.activeElement !== checkoutInput) checkoutInput.value = normalizedPromo();
+  if(cartInput){
+    cartInput.disabled = locked;
+    cartInput.placeholder = locked ? 'Войдите в кабинет' : 'JELANI10';
+  }
+  if(checkoutInput){
+    checkoutInput.disabled = locked;
+    checkoutInput.placeholder = locked ? 'Доступен после входа' : 'JELANI10';
+  }
+  if(applyButton) applyButton.textContent = locked ? 'Войти' : 'Применить';
+  $('#cart-promo')?.classList.toggle('is-locked', locked);
   const message = $('#promo-message');
   if(message) message.textContent = promoMessage();
 }
 function applyPromo(code){
+  if(!isAuthorized()){
+    promoCode = '';
+    localStorage.removeItem('jelani_promo');
+    syncPromoInputs();
+    openHistory();
+    showToast('Промокод доступен после входа в личный кабинет');
+    return;
+  }
   promoCode = String(code || '').trim().toUpperCase();
   if(promoCode) localStorage.setItem('jelani_promo', promoCode);
   else localStorage.removeItem('jelani_promo');
@@ -432,6 +687,14 @@ function validatePhoneField(input){
 function openCheckout(){
   if(!cart.length){showToast('Сначала добавь позиции в корзину');return;}
   $('#checkout-total').textContent=formatPrice(cartTotal());
+  const profile = getProfile();
+  const form = $('#checkout-form');
+  if(profile && form){
+    const nameInput = form.querySelector('input[name="name"]');
+    const phoneInput = form.querySelector('input[name="phone"]');
+    if(nameInput && !nameInput.value) nameInput.value = profile.name || '';
+    if(phoneInput && !phoneInput.value) phoneInput.value = profile.phone || '';
+  }
   syncPromoInputs();
   updateDeliveryFields();
   closeOverlay('#cart-overlay');
@@ -459,14 +722,30 @@ async function completeCheckout(event){
     return;
   }
   phoneInput.value = formatRussianPhone(phoneInput.value);
+  const customerName = String(form.get('name') || '').trim();
+  try {
+    saveProfile({ name: customerName, phone: phoneInput.value });
+  } catch {
+    // Форма уже проверяет обязательные поля; профиль просто не сохранится при ручной подмене.
+  }
   promoCode = String(form.get('promo') || promoCode || '').trim().toUpperCase();
-  localStorage.setItem('jelani_promo', promoCode);
+  if(promoCode && !isAuthorized()){
+    promoCode = '';
+    localStorage.removeItem('jelani_promo');
+    syncPromoInputs();
+    openHistory();
+    showToast('Сначала сохраните профиль для промокода');
+    return;
+  }
+  if(promoCode) localStorage.setItem('jelani_promo', promoCode);
+  else localStorage.removeItem('jelani_promo');
   const discount = promoDiscount();
+  const trackingToken = createTrackingToken();
   const order = {
     id:`JL-${Date.now().toString().slice(-7)}`,
     status:'Заказ создан',
     date:new Date().toLocaleString('ru-RU'),
-    name:form.get('name'),
+    name:customerName,
     phone:phoneInput.value,
     delivery:form.get('delivery'),
     address:form.get('address') || '',
@@ -476,16 +755,22 @@ async function completeCheckout(event){
     subtotal:cartSubtotal(),
     discount,
     total:cartTotal(),
-    items:snapshotItems()
+    items:snapshotItems(),
+    trackingToken,
+    profile:profilePayload()
   };
 
   submit.disabled = true;
   submit.textContent = 'Отправляем заказ...';
   let telegramSent = false;
   try {
-    await sendOrderToServer(order);
+    const data = await sendOrderToServer(order);
     telegramSent = true;
-    order.status = 'Отправлен в Telegram';
+    const status = data.status || localStatusFromOrder(order);
+    order.status = status.status;
+    order.statusDetail = status.detail;
+    order.tracking = Boolean(data.tracking);
+    upsertActiveOrder(status, trackingToken);
   } catch (error) {
     order.status = 'Сохранён локально';
     order.telegramError = error.message;
@@ -502,10 +787,11 @@ async function completeCheckout(event){
   renderCart();
   formEl.reset();
   updateDeliveryFields();
+  renderAccount();
   submit.disabled = false;
   submit.innerHTML = 'Подтвердить заказ <span>→</span>';
   closeOverlay('#checkout-overlay');
-  showToast(telegramSent ? `Заказ ${order.id} отправлен в Telegram` : `Заказ ${order.id} сохранён. Подключи сервер для Telegram`);
+  showToast(telegramSent ? `Заказ ${order.id} принят` : `Заказ ${order.id} сохранён на устройстве`);
 }
 function orderSummary(order){
   const count=(order.items||[]).reduce((sum,item)=>sum+(item.qty||1),0);
@@ -517,6 +803,7 @@ function historyTemplate(order, favorite=false){
   return `<article class="history-item">
     <div class="history-item__top"><span>${esc(order.id)}</span><span>${formatPrice(order.total)}</span></div>
     <p>${orderSummary(order)}</p>
+    ${order.statusDetail ? `<div class="history-item__status">${esc(order.statusDetail)}</div>` : ''}
     <div class="history-item__actions">
       <button type="button" data-repeat-${favorite ? 'favorite' : 'order'}="${order.id}">Заказать снова</button>
       ${favorite ? '' : `<button type="button" data-favorite-order="${order.id}">В избранное</button>`}
@@ -524,8 +811,7 @@ function historyTemplate(order, favorite=false){
   </article>`;
 }
 function openHistory(){
-  const orders=safeJson('jelani_orders', []);
-  $('#history-list').innerHTML=orders.length?orders.map(o=>historyTemplate(o)).join(''):'<div class="history-empty">Заказов пока нет.<br>Оформленные заказы появятся здесь.</div>';
+  renderAccount();
   closeOverlays(['#favorites-overlay', '#cart-overlay']);
   openOverlay('#history-overlay');
 }
@@ -685,10 +971,33 @@ function bindEvents(){
   $('#apply-promo').addEventListener('click',()=>applyPromo($('#promo-code').value));
   $('#promo-code').addEventListener('keydown',event=>{ if(event.key === 'Enter'){ event.preventDefault(); applyPromo(event.currentTarget.value); } });
   $('#checkout-promo').addEventListener('input',event=>applyPromo(event.currentTarget.value));
+  $('#account-form')?.addEventListener('submit', event=>{
+    event.preventDefault();
+    try {
+      saveProfile({ name:$('#account-name').value, phone:$('#account-phone').value });
+      renderAccount();
+      syncPromoInputs();
+      renderCart();
+      showToast('Профиль сохранен');
+    } catch (error) {
+      showToast(error.message);
+    }
+  });
+  $('#tracker-close')?.addEventListener('click',()=>{
+    const order = currentActiveOrders()[0];
+    if(order) dismissActiveOrder(order.id);
+  });
+  $('#tracker-received')?.addEventListener('click',()=>{
+    const order = currentActiveOrders()[0];
+    if(order) dismissActiveOrder(order.id);
+  });
   $('#delivery-select').addEventListener('change',updateDeliveryFields);
   const phoneInput = $('#checkout-form input[name="phone"]');
   phoneInput.addEventListener('input',event=>{ event.currentTarget.setCustomValidity(''); });
   phoneInput.addEventListener('blur',event=>{
+    if(isRussianMobilePhone(event.currentTarget.value)) event.currentTarget.value = formatRussianPhone(event.currentTarget.value);
+  });
+  $('#account-phone')?.addEventListener('blur',event=>{
     if(isRussianMobilePhone(event.currentTarget.value)) event.currentTarget.value = formatRussianPhone(event.currentTarget.value);
   });
   $('#open-search').addEventListener('click',()=>{renderSearch();openOverlay('#search-overlay');setTimeout(()=>$('#search-input').focus(),100)}); $('#search-input').addEventListener('input',e=>renderSearch(e.target.value));
@@ -710,10 +1019,13 @@ function init(){
   renderSets();
   renderMenu();
   renderCart();
+  renderAccount();
+  renderOrderTracker();
   updateDeliveryFields();
   updateStoreStatus();
   bindEvents();
   initHeroCarousel();
+  startStatusPolling();
   window.setInterval(updateStoreStatus, 60000);
 }
 init();

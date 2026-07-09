@@ -3,6 +3,8 @@ main = "_worker.js"
 compatibility_date = "2025-01-01"
 workers_dev = true
 
+# Live client order tracking needs a Cloudflare KV binding named ORDER_STATUS.
+# Keep it configured in Cloudflare Dashboard, or add [[kv_namespaces]] with a real id.
 [assets]
 directory = "."
 binding = "ASSETS"

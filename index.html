@@ -32,7 +32,7 @@
 
     <div class="header-actions">
       <button class="header-link" id="favorites-btn" type="button">Любимые</button>
-      <button class="header-link" id="order-history-btn" type="button">Мои заказы</button>
+      <button class="header-link" id="order-history-btn" type="button">Личный кабинет</button>
       <button class="cart-button" id="open-cart" type="button" aria-label="Открыть корзину">
         <span>Корзина</span><b id="cart-count">0</b>
       </button>
@@ -54,7 +54,7 @@
       <a href="#menu">Меню <span>→</span></a>
       <a href="#about">О нас <span>→</span></a>
       <button type="button" data-open-favorites>Мои любимые заказы <span>→</span></button>
-      <button type="button" data-open-history>Мои заказы <span>→</span></button>
+      <button type="button" data-open-history>Личный кабинет <span>→</span></button>
     </nav>
     <div class="mobile-menu__note">
       <span data-store-status>Открыто до 21:45</span>
@@ -219,13 +219,27 @@
     <span>Корзина</span><b id="mobile-cart-total">0 ₽</b>
   </button>
 
+  <section class="order-tracker" id="order-tracker" aria-live="polite" hidden>
+    <div class="order-tracker__top">
+      <div>
+        <p class="eyebrow">АКТИВНЫЙ ЗАКАЗ</p>
+        <h2 id="tracker-title">Заказ</h2>
+      </div>
+      <button class="icon-button" id="tracker-close" type="button" aria-label="Скрыть статус">×</button>
+    </div>
+    <strong id="tracker-status">Заказ создан</strong>
+    <p id="tracker-detail">Статус обновляется автоматически.</p>
+    <ol class="order-steps" id="tracker-steps"></ol>
+    <button class="secondary-dark-btn full-btn" id="tracker-received" type="button" hidden>Я получил заказ</button>
+  </section>
+
   <div class="overlay" id="cart-overlay" aria-hidden="true">
     <aside class="cart-drawer" role="dialog" aria-modal="true" aria-label="Корзина">
       <div class="drawer-head"><div><p class="eyebrow">ТВОЙ ЗАКАЗ</p><h2>Корзина</h2></div><button class="icon-button" id="close-cart" type="button">×</button></div>
       <div class="cart-items" id="cart-items"></div>
       <div class="cart-empty" id="cart-empty">Корзина пока пустая.<br>Добавь что-нибудь сочное.</div>
       <div class="cart-promo" id="cart-promo">
-        <label>Промокод</label>
+        <label>Промокод для личного кабинета</label>
         <div class="promo-row">
           <input id="promo-code" placeholder="JELANI10" autocomplete="off" />
           <button class="secondary-dark-btn" id="apply-promo" type="button">Применить</button>
@@ -284,9 +298,9 @@
         <label>Телефон<input required name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 900 000-00-00" pattern="^(\+7|8)\s?9\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}$" title="Введите российский мобильный номер: +7 9XX XXX-XX-XX"></label>
         <label>Способ получения<select required name="delivery" id="delivery-select"><option>Самовывоз</option><option>Доставка</option></select></label>
         <label id="address-field" hidden>Адрес доставки<input name="address" placeholder="Улица, дом, подъезд, квартира"></label>
-        <label>Способ оплаты<select required name="payment"><option>Наличными</option><option>Переводом</option><option>Картой при получении</option></select></label>
+        <label>Способ оплаты<select required name="payment"><option>Наличными</option><option>Картой / СБП</option><option>Картой при получении</option></select></label>
         <label>Комментарий<textarea name="comment" placeholder="Пожелания к заказу"></textarea></label>
-        <label>Промокод<input name="promo" id="checkout-promo" placeholder="JELANI10" autocomplete="off"></label>
+        <label>Промокод<input name="promo" id="checkout-promo" placeholder="Доступен после входа" autocomplete="off"></label>
         <div class="checkout-total"><span>К оплате</span><strong id="checkout-total">0 ₽</strong></div>
         <button class="primary-btn full-btn" type="submit">Подтвердить заказ <span>→</span></button>
         <p class="form-note">Заказ отправится в Telegram, если запущен сервер с токеном бота. Если сервер не подключён, заказ сохранится в этом браузере.</p>
@@ -296,7 +310,21 @@
 
   <div class="overlay" id="history-overlay" aria-hidden="true">
     <section class="choice-modal history-modal" role="dialog" aria-modal="true" aria-labelledby="history-title">
-      <div class="drawer-head"><div><p class="eyebrow">ЛИЧНЫЙ КАБИНЕТ</p><h2 id="history-title">Мои заказы</h2></div><button class="icon-button" id="close-history" type="button">×</button></div>
+      <div class="drawer-head"><div><p class="eyebrow">ЛИЧНЫЙ КАБИНЕТ</p><h2 id="history-title">Мой JELANI</h2></div><button class="icon-button" id="close-history" type="button">×</button></div>
+      <div class="account-panel">
+        <form class="account-form" id="account-form">
+          <label>Имя<input id="account-name" autocomplete="name" placeholder="Как к вам обращаться"></label>
+          <label>Телефон<input id="account-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 900 000-00-00"></label>
+          <button class="primary-btn full-btn" type="submit">Сохранить профиль <span>→</span></button>
+          <p class="form-note" id="account-state">Промокоды работают только после сохранения профиля.</p>
+        </form>
+        <div class="account-stats" id="account-stats"></div>
+        <div class="account-active" id="account-active"></div>
+      </div>
+      <div class="account-section-head">
+        <h3>История заказов</h3>
+        <button class="secondary-dark-btn" type="button" data-open-favorites>Избранное</button>
+      </div>
       <div id="history-list" class="history-list"></div>
     </section>
   </div>

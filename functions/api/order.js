@@ -2,6 +2,31 @@ const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8'
 };
 
+const ORDER_TTL_SECONDS = 60 * 60 * 24 * 3;
+
+const FLOW_STEPS = {
+  pickup: [
+    { label: 'Заказ создан', detail: 'Заказ ушел на кухню.' },
+    { label: 'Принят', detail: 'Команда JELANI подтвердила заказ.' },
+    { label: 'Готовим', detail: 'Заказ сейчас готовится.' },
+    { label: 'Готов к самовывозу', detail: 'Заказ можно забирать.' },
+    { label: 'Получен', detail: 'Заказ выдан клиенту.', terminal: true }
+  ],
+  delivery: [
+    { label: 'Заказ создан', detail: 'Заказ ушел на кухню.' },
+    { label: 'Принят', detail: 'Команда JELANI подтвердила заказ.' },
+    { label: 'Готовим', detail: 'Заказ сейчас готовится.' },
+    { label: 'Передан курьеру', detail: 'Заказ передан в доставку.' },
+    { label: 'В пути', detail: 'Курьер едет к клиенту.' },
+    { label: 'Получен', detail: 'Заказ доставлен клиенту.', terminal: true }
+  ]
+};
+
+const ADMIN_ACTIONS = {
+  pickup: ['Принять заказ', 'Готовим', 'Готов к самовывозу', 'Выдан клиенту'],
+  delivery: ['Принять заказ', 'Готовим', 'Передан курьеру', 'В пути', 'Доставлен']
+};
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -35,13 +60,80 @@ function formatPrice(value) {
   }).format(Number(value || 0));
 }
 
-function validateRussianPhone(phone) {
+function normalizeRussianPhone(phone) {
   const digits = String(phone || '').replace(/\D/g, '');
-  const normalized = digits.length === 11 && digits.startsWith('8')
+  return digits.length === 11 && digits.startsWith('8')
     ? `7${digits.slice(1)}`
     : digits;
+}
 
-  return /^79\d{9}$/.test(normalized);
+function validateRussianPhone(phone) {
+  return /^79\d{9}$/.test(normalizeRussianPhone(phone));
+}
+
+function orderFlow(delivery) {
+  return String(delivery || '').toLowerCase().includes('достав') ? 'delivery' : 'pickup';
+}
+
+function flowDelivery(flow) {
+  return flow === 'delivery' ? 'Доставка' : 'Самовывоз';
+}
+
+function flowSteps(flow) {
+  return FLOW_STEPS[flow] || FLOW_STEPS.pickup;
+}
+
+function statusFromStep(flow, step) {
+  if (step === 'cancel') {
+    return {
+      statusIndex: -1,
+      status: 'Отменен',
+      detail: 'Заказ отменен.',
+      canceled: true,
+      terminal: true
+    };
+  }
+
+  const steps = flowSteps(flow);
+  const index = Math.max(0, Math.min(Number(step) || 0, steps.length - 1));
+  const current = steps[index] || steps[0];
+
+  return {
+    statusIndex: index,
+    status: current.label,
+    detail: current.detail,
+    canceled: false,
+    terminal: Boolean(current.terminal)
+  };
+}
+
+function statusPayload(record) {
+  return {
+    id: record.id,
+    flow: record.flow,
+    delivery: flowDelivery(record.flow),
+    statusIndex: record.statusIndex,
+    status: record.status,
+    detail: record.detail,
+    steps: flowSteps(record.flow),
+    terminal: Boolean(record.terminal),
+    canceled: Boolean(record.canceled),
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    total: record.total || 0
+  };
+}
+
+function orderKey(orderId) {
+  return `order:${orderId}`;
+}
+
+async function saveOrderStatus(env, record) {
+  if (!env.ORDER_STATUS) return false;
+  await env.ORDER_STATUS.put(orderKey(record.id), JSON.stringify(record), {
+    expirationTtl: ORDER_TTL_SECONDS
+  });
+  return true;
 }
 
 function validateOrder(order) {
@@ -50,13 +142,20 @@ function validateOrder(order) {
   if (!validateRussianPhone(order.phone)) throw new ValidationError('Укажите российский мобильный номер в формате +7 9XX XXX-XX-XX');
   if (!Array.isArray(order.items) || order.items.length === 0) throw new ValidationError('Корзина пустая');
   if (order.delivery === 'Доставка' && !order.address) throw new ValidationError('Нужен адрес доставки');
+  if (order.promo) {
+    const profilePhone = normalizeRussianPhone(order.profile?.phone);
+    const orderPhone = normalizeRussianPhone(order.phone);
+    if (!order.profile?.authorized || !validateRussianPhone(profilePhone) || profilePhone !== orderPhone) {
+      throw new ValidationError('Промокод доступен только после входа в личный кабинет');
+    }
+  }
 }
 
 function orderMessage(order) {
   const items = order.items.map((item, index) => {
     const qty = Number(item.qty || 1);
     const details = item.details ? `\n   ${escapeHtml(item.details)}` : '';
-    return `${index + 1}. ${escapeHtml(item.name)} x ${qty} — ${formatPrice(Number(item.price || 0) * qty)}${details}`;
+    return `${index + 1}. ${escapeHtml(item.name)} x ${qty} - ${formatPrice(Number(item.price || 0) * qty)}${details}`;
   }).join('\n');
 
   return [
@@ -74,24 +173,26 @@ function orderMessage(order) {
     items,
     '',
     `<b>Товары:</b> ${formatPrice(order.subtotal)}`,
-    Number(order.discount) > 0 ? `<b>Скидка:</b> −${formatPrice(order.discount)}` : '',
+    Number(order.discount) > 0 ? `<b>Скидка:</b> -${formatPrice(order.discount)}` : '',
     `<b>Итого:</b> ${formatPrice(order.total)}`
   ].filter(Boolean).join('\n');
 }
 
-function statusKeyboard(order, index = 0) {
-  const pickup = ['Принять заказ', 'Готовим', 'Ожидает самовывоза', 'Выдан', 'Завершить'];
-  const delivery = ['Принять заказ', 'Готовим', 'Передать курьеру', 'В пути', 'Завершить'];
-  const flow = order.delivery === 'Доставка' ? 'delivery' : 'pickup';
-  const steps = flow === 'delivery' ? delivery : pickup;
-  const next = steps[index] ? [[{
-    text: steps[index],
-    callback_data: `o:${order.id}:${flow}:${index + 1}`
-  }]] : [];
+function statusKeyboard(order, selectedIndex = 0) {
+  const flow = order.flow || orderFlow(order.delivery);
+  const actions = ADMIN_ACTIONS[flow] || ADMIN_ACTIONS.pickup;
+  const rows = actions.map((label, index) => {
+    const step = index + 1;
+    const active = Number(selectedIndex) === step;
+    return [{
+      text: `${active ? '✓ ' : ''}${label}`,
+      callback_data: `o:${order.id}:${flow}:${step}`
+    }];
+  });
 
   return {
     inline_keyboard: [
-      ...next,
+      ...rows,
       [{ text: 'Отменить заказ', callback_data: `o:${order.id}:${flow}:cancel` }]
     ]
   };
@@ -110,12 +211,45 @@ async function telegram(env, method, payload) {
   return data.result;
 }
 
+async function ensureTelegramWebhook(request, env) {
+  if (env.TELEGRAM_AUTO_WEBHOOK === 'off') return;
+  const origin = new URL(request.url).origin;
+
+  try {
+    await telegram(env, 'setWebhook', {
+      url: `${origin}/api/telegram-webhook`,
+      allowed_updates: ['callback_query']
+    });
+  } catch {
+    // Заказ не должен падать, если Telegram временно не дал обновить webhook.
+  }
+}
+
+function createOrderRecord(order, messageId) {
+  const flow = orderFlow(order.delivery);
+  const now = new Date().toISOString();
+  const status = statusFromStep(flow, 0);
+
+  return {
+    id: order.id,
+    flow,
+    messageId,
+    trackToken: order.trackingToken || '',
+    total: Number(order.total || 0),
+    createdAt: now,
+    updatedAt: now,
+    ...status
+  };
+}
+
 export async function onRequestPost({ request, env }) {
   try {
     const order = await request.json();
     validateOrder(order);
 
     if (!env.TELEGRAM_CHAT_ID) throw new Error('TELEGRAM_CHAT_ID не задан');
+
+    await ensureTelegramWebhook(request, env);
 
     const result = await telegram(env, 'sendMessage', {
       chat_id: env.TELEGRAM_CHAT_ID,
@@ -124,7 +258,15 @@ export async function onRequestPost({ request, env }) {
       reply_markup: statusKeyboard(order)
     });
 
-    return json({ ok: true, messageId: result.message_id });
+    const record = createOrderRecord(order, result.message_id);
+    const tracking = await saveOrderStatus(env, record);
+
+    return json({
+      ok: true,
+      messageId: result.message_id,
+      tracking,
+      status: statusPayload(record)
+    });
   } catch (error) {
     const status = error instanceof SyntaxError ? 400 : error.status || 500;
     return json({ ok: false, error: error.message }, status);
