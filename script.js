@@ -12,12 +12,13 @@ const sauces = [
   'Чили', 'Сырный', 'Кисло-сладкий', 'Мацони', 'Наршараб'
 ];
 
-const drinks = ['Кола 0.5', 'Лимонад 0.5', 'Сок 0.3', 'Чай', 'Американо', 'Морс'];
+const drinks = ['Смузи', 'Коктейль', 'Газировка', 'Сок', 'Чай', 'Кофе'];
 
 const categoryMeta = [
   { id: 'all', label: 'Всё меню' },
+  { id: 'burgers', label: 'Бургеры' },
   { id: 'shawarma', label: 'Шаурма и донер' },
-  { id: 'sandwiches', label: 'Бургеры и сэндвичи' },
+  { id: 'sandwiches', label: 'Сэндвичи и хот-доги' },
   { id: 'snacks', label: 'Закуски' },
   { id: 'salads', label: 'Салаты' },
   { id: 'desserts', label: 'Десерты' },
@@ -26,83 +27,83 @@ const categoryMeta = [
 ];
 
 const menuItems = [
-  { id:'shawarma-small-chicken', category:'shawarma', name:'Шаурма маленькая', description:'Курица, овощи, 1–2 соуса на выбор.', price:190, emoji:'🌯', visual:'orange', tags:['курица','хит'] },
-  { id:'shawarma-standard', category:'shawarma', name:'Шаурма стандартная', description:'Выбирай курицу или говядину, овощи и соусы.', price:240, emoji:'🌯', visual:'orange', tags:['курица','говядина','хит'] },
-  { id:'shawarma-large', category:'shawarma', name:'Шаурма большая', description:'Для настоящего голода: больше основы и начинки.', price:290, emoji:'🌯', visual:'dark', tags:['курица','говядина'] },
-  { id:'doner-chicken', category:'shawarma', name:'Донер с курицей', description:'Сочный донер, свежие овощи и соус.', price:230, emoji:'🥙', visual:'yellow', tags:['курица'] },
-  { id:'doner-beef', category:'shawarma', name:'Донер с говядиной', description:'Говядина, овощи, яркий соус.', price:270, emoji:'🥙', visual:'dark', tags:['говядина'] },
-  { id:'gyres', category:'shawarma', name:'Гирес', description:'Мясо, свежая зелень, овощи и мацони.', price:250, emoji:'🫓', visual:'green', tags:['курица','говядина'] },
-  { id:'pita', category:'shawarma', name:'Пита', description:'Тёплая пита с мясом, овощами и соусом.', price:240, emoji:'🫓', visual:'pink', tags:['курица','говядина'] },
-  { id:'open-shawarma', category:'shawarma', name:'Открытая шаурма', description:'Больше видно начинки, больше удовольствия.', price:320, emoji:'🍽️', visual:'orange', tags:['курица','говядина'] },
-  { id:'tantuni', category:'shawarma', name:'Тантуни с сумахом', description:'Говядина или курица, томаты, лук и сумах.', price:260, emoji:'🌮', visual:'pink', tags:['курица','говядина'] },
-  { id:'quesadilla', category:'shawarma', name:'Кесадилья', description:'Сыр, мясо, овощи и соус в хрустящей лепёшке.', price:290, emoji:'🫔', visual:'yellow', tags:['курица','говядина','сыр'] },
+  { id:'burger', category:'burgers', name:'Бургер', description:'Сочная котлета, сыр, салат, томаты, огурчики и фирменный соус.', price:270, emoji:'🍔', visual:'orange', tags:['бургер','говядина','хит'] },
 
-  { id:'jelani-burger', category:'sandwiches', name:'Бургер JELANI', description:'Сочная котлета из говядины, сыр, салат, томаты, соус.', price:270, emoji:'🍔', visual:'orange', tags:['говядина','сыр'] },
-  { id:'chicken-caesar-baguette', category:'sandwiches', name:'Багет «Цезарь»', description:'Курица, сыр, айсберг, томаты и соус «Цезарь».', price:260, emoji:'🥖', visual:'green', tags:['курица','цезарь'] },
-  { id:'club-sandwich', category:'sandwiches', name:'Клаб-сэндвич', description:'Тостовый хлеб, курица, сыр, овощи, яйцо и соус.', price:280, emoji:'🥪', visual:'pink', tags:['курица','тост'] },
-  { id:'philly-beef', category:'sandwiches', name:'Чиабатта «Philly»', description:'Говядина, сыр, грибы, лук, перец и чесночный соус.', price:330, emoji:'🥪', visual:'dark', tags:['говядина','грибы','сыр'] },
-  { id:'hot-chicken', category:'sandwiches', name:'Горячий сэндвич', description:'Курица, сыр, огурчики, салат и сладкий чили.', price:270, emoji:'🍞', visual:'yellow', tags:['курица','чили'] },
-  { id:'american-sandwich', category:'sandwiches', name:'Американский сэндвич', description:'Говядина, сыр, томаты, лук, огурчики и 1000 островов.', price:310, emoji:'🥪', visual:'orange', tags:['говядина','сыр'] },
-  { id:'fried-sandwich', category:'sandwiches', name:'Жареный сэндвич', description:'Тостовый хлеб, курица, сыр и соус — обжаренный до хруста.', price:230, emoji:'🍞', visual:'dark', tags:['курица','сыр'] },
-  { id:'gulliver-sandwich', category:'sandwiches', name:'Сэндвич «Гулливер»', description:'Большой сэндвич с курицей, сыром, овощами и соусом.', price:290, emoji:'🥪', visual:'green', tags:['курица'] },
-  { id:'pyaterochka-sandwich', category:'sandwiches', name:'Сэндвич «Пятёрочка»', description:'Быстрый, понятный, с курицей, сыром и овощами.', price:190, emoji:'🥪', visual:'pink', tags:['курица'] },
-  { id:'ciabatta-sandwich', category:'sandwiches', name:'Чиабатта-сэндвич', description:'Хрустящая чиабатта, мясо, сыр и свежие овощи.', price:290, emoji:'🥖', visual:'yellow', tags:['курица','говядина'] },
-  { id:'hotdog', category:'sandwiches', name:'Хот-дог', description:'Булочка, сосиска, огурчики, лук, кетчуп и соус.', price:180, emoji:'🌭', visual:'orange', tags:[] },
+  { id:'shawarma-small-chicken', category:'shawarma', name:'Шаурма маленькая с курицей', description:'Курица, свежие овощи и 1-2 соуса на выбор.', price:190, emoji:'🌯', visual:'orange', tags:['шаурма','курица'] },
+  { id:'shawarma-small-beef', category:'shawarma', name:'Шаурма маленькая с говядиной', description:'Говядина, свежие овощи и 1-2 соуса на выбор.', price:225, emoji:'🌯', visual:'dark', tags:['шаурма','говядина'] },
+  { id:'shawarma-standard-chicken', category:'shawarma', name:'Шаурма стандартная с курицей', description:'Курица, овощи, зелень и фирменная соусная сборка.', price:240, emoji:'🌯', visual:'orange', tags:['шаурма','курица','хит'] },
+  { id:'shawarma-standard-beef', category:'shawarma', name:'Шаурма стандартная с говядиной', description:'Говядина, овощи, зелень и фирменная соусная сборка.', price:275, emoji:'🌯', visual:'dark', tags:['шаурма','говядина','хит'] },
+  { id:'shawarma-large-chicken', category:'shawarma', name:'Шаурма большая с курицей', description:'Большая порция курицы, овощей и соусов для сильного голода.', price:290, emoji:'🌯', visual:'orange', tags:['шаурма','курица'] },
+  { id:'shawarma-large-beef', category:'shawarma', name:'Шаурма большая с говядиной', description:'Большая порция говядины, овощей и соусов для сильного голода.', price:325, emoji:'🌯', visual:'dark', tags:['шаурма','говядина'] },
+  { id:'doner-chicken', category:'shawarma', name:'Донер с курицей', description:'Курица, овощи, зелень и насыщенный соус в удобной подаче.', price:230, emoji:'🥙', visual:'green', tags:['донер','курица'] },
+  { id:'doner-beef', category:'shawarma', name:'Донер с говядиной', description:'Говядина, овощи, зелень и насыщенный соус в удобной подаче.', price:270, emoji:'🥙', visual:'dark', tags:['донер','говядина'] },
+  { id:'gyros', category:'shawarma', name:'Гирос', description:'Мясо, свежие овощи, картофель и соус мацони в мягкой лепешке.', price:250, emoji:'🥙', visual:'green', tags:['гирос','курица','говядина'] },
+  { id:'pita', category:'shawarma', name:'Пита', description:'Теплая пита с мясом, овощами, зеленью и соусом.', price:240, emoji:'🥙', visual:'pink', tags:['пита','курица','говядина'] },
+  { id:'open-shawarma', category:'shawarma', name:'Открытая шаурма', description:'Больше начинки на виду: мясо, овощи, картофель и соусы.', price:320, emoji:'🍽️', visual:'orange', tags:['открытая шаурма','курица','говядина'] },
+  { id:'quesadilla', category:'shawarma', name:'Кесадилья', description:'Хрустящая лепешка, мясо, сыр, овощи и соус.', price:290, emoji:'🫔', visual:'yellow', tags:['кесадилья','сыр','курица','говядина'] },
 
-  { id:'fries', category:'snacks', name:'Картофель фри', description:'Золотистый, хрустящий, горячий.', price:110, emoji:'🍟', visual:'yellow', tags:['хит'] },
-  { id:'nuggets6', category:'snacks', name:'Наггетсы 6 шт.', description:'Куриные, хрустящие, с соусом на выбор.', price:160, emoji:'🍗', visual:'orange', tags:['курица'] },
-  { id:'nuggets9', category:'snacks', name:'Наггетсы 9 шт.', description:'Больше хруста для большой компании.', price:220, emoji:'🍗', visual:'pink', tags:['курица'] },
-  { id:'onion-rings', category:'snacks', name:'Луковые кольца', description:'Хрустящие кольца в панировке.', price:130, emoji:'🧅', visual:'yellow', tags:[] },
-  { id:'wings', category:'snacks', name:'Крылышки', description:'Сочные крылья с соусом на выбор.', price:240, emoji:'🍗', visual:'dark', tags:['курица'] },
-  { id:'garlic-croutons', category:'snacks', name:'Гренки с чесночным соусом', description:'Чесночные гренки и холодный соус.', price:130, emoji:'🧄', visual:'green', tags:[] },
-  { id:'fish-nuggets', category:'snacks', name:'Рыбные наггетсы', description:'Нежная рыба в хрустящей панировке.', price:190, emoji:'🐟', visual:'pink', tags:[] },
+  { id:'sandwich-chicken', category:'sandwiches', name:'Сэндвич с курицей', description:'Курица, сыр, салат, томаты и соус в мягком хлебе.', price:240, emoji:'🥪', visual:'green', tags:['сэндвич','курица'] },
+  { id:'sandwich-ham', category:'sandwiches', name:'Сэндвич с ветчиной', description:'Ветчина, сыр, овощи и соус в мягком хлебе.', price:230, emoji:'🥪', visual:'pink', tags:['сэндвич','ветчина'] },
+  { id:'fried-sandwich', category:'sandwiches', name:'Жареный сэндвич', description:'Горячий сэндвич с сыром и начинкой, обжаренный до хруста.', price:230, emoji:'🍞', visual:'yellow', tags:['жареный','сыр'] },
+  { id:'american-sandwich', category:'sandwiches', name:'Американский сэндвич', description:'Сытный сэндвич с мясом, сыром, огурчиками и соусом 1000 островов.', price:310, emoji:'🥪', visual:'orange', tags:['американский','говядина','сыр'] },
+  { id:'cross-sandwich-chicken', category:'sandwiches', name:'Перекрестный сэндвич с курицей', description:'Горячий перекрестный сэндвич с курицей, сыром и соусом.', price:260, emoji:'🥪', visual:'green', tags:['перекрестный','курица'] },
+  { id:'cross-sandwich-ham', category:'sandwiches', name:'Перекрестный сэндвич с ветчиной', description:'Горячий перекрестный сэндвич с ветчиной, сыром и соусом.', price:250, emoji:'🥪', visual:'pink', tags:['перекрестный','ветчина'] },
+  { id:'ciabatta-sandwich', category:'sandwiches', name:'Чиабатта-сэндвич', description:'Хрустящая чиабатта, мясо, сыр, овощи и соус.', price:290, emoji:'🥖', visual:'yellow', tags:['чиабатта','курица','говядина'] },
+  { id:'fried-toasties', category:'sandwiches', name:'Жареные бутерброды', description:'Горячие бутерброды с сыром и начинкой, быстро и сытно.', price:190, emoji:'🍞', visual:'dark', tags:['бутерброды','сыр'] },
+  { id:'hotdog', category:'sandwiches', name:'Хот-дог', description:'Булочка, сосиска, огурчики, лук, кетчуп и соус.', price:180, emoji:'🌭', visual:'orange', tags:['хот-дог'] },
 
-  { id:'caesar-salad', category:'salads', name:'Салат «Цезарь»', description:'Курица, салат, томаты, сыр, сухарики, соус.', price:230, emoji:'🥗', visual:'green', tags:['курица'] },
-  { id:'caucasian-salad', category:'salads', name:'Кавказский салат', description:'Томаты, огурцы, зелень, лук и яркая заправка.', price:180, emoji:'🥗', visual:'pink', tags:[] },
-  { id:'big-hit-salad', category:'salads', name:'Салат «Биг Хит»', description:'Сытный салат с курицей, сыром, овощами и соусом.', price:250, emoji:'🥗', visual:'orange', tags:['курица','сыр'] },
-  { id:'chips-salad', category:'salads', name:'Салат в пачке чипсов', description:'Необычная подача: салат, соус и хруст чипсов.', price:230, emoji:'🥔', visual:'yellow', tags:[] },
+  { id:'fries', category:'snacks', name:'Картофель фри', description:'Золотистый, хрустящий, горячий картофель.', price:110, emoji:'🍟', visual:'yellow', tags:['фри','хит'] },
+  { id:'nuggets', category:'snacks', name:'Наггетсы', description:'Куриные наггетсы в хрустящей панировке.', price:160, emoji:'🍗', visual:'orange', tags:['наггетсы','курица'] },
+  { id:'onion-rings', category:'snacks', name:'Луковые кольца', description:'Хрустящие кольца в панировке.', price:130, emoji:'🧅', visual:'yellow', tags:['кольца'] },
+  { id:'wings', category:'snacks', name:'Крылышки', description:'Сочные куриные крылышки с соусом на выбор.', price:240, emoji:'🍗', visual:'dark', tags:['крылышки','курица'] },
+  { id:'garlic-croutons', category:'snacks', name:'Гренки', description:'Хрустящие гренки с чесночным соусом.', price:130, emoji:'🧄', visual:'green', tags:['гренки','чеснок'] },
+  { id:'fish-nuggets', category:'snacks', name:'Рыбные наггетсы', description:'Нежная рыба в хрустящей панировке.', price:190, emoji:'🐟', visual:'pink', tags:['рыба','наггетсы'] },
 
-  { id:'waffle', category:'desserts', name:'Венская вафля', description:'Тёплая вафля с топпингом на выбор.', price:170, emoji:'🧇', visual:'yellow', tags:[] },
-  { id:'syrniki', category:'desserts', name:'Сырники', description:'Нежные сырники со сметаной или топпингом.', price:190, emoji:'🥞', visual:'pink', tags:[] },
-  { id:'baklava-icecream', category:'desserts', name:'Пахлава с мороженым', description:'Восточная сладость и холодное мороженое.', price:220, emoji:'🍨', visual:'orange', tags:[] },
-  { id:'napoleon', category:'desserts', name:'Торт «Наполеон»', description:'Классический слоёный кусок торта.', price:160, emoji:'🍰', visual:'yellow', tags:[] },
-  { id:'medovik', category:'desserts', name:'Торт «Медовик»', description:'Медовые коржи и нежный крем.', price:160, emoji:'🍰', visual:'pink', tags:[] },
-  { id:'donuts', category:'desserts', name:'Пончики', description:'Сахарная пудра или сладкий топпинг.', price:130, emoji:'🍩', visual:'orange', tags:[] },
+  { id:'caesar-salad', category:'salads', name:'Салат «Цезарь»', description:'Курица, салат, томаты, сыр, сухарики и соус.', price:230, emoji:'🥗', visual:'green', tags:['салат','цезарь','курица'] },
+  { id:'caucasian-salad', category:'salads', name:'Кавказский салат', description:'Томаты, огурцы, зелень, лук и яркая заправка.', price:180, emoji:'🥗', visual:'pink', tags:['салат','кавказский'] },
+  { id:'big-hit-salad', category:'salads', name:'Салат «Биг Хит»', description:'Сытный салат с курицей, сыром, овощами и соусом.', price:250, emoji:'🥗', visual:'orange', tags:['салат','биг хит','курица'] },
+  { id:'chips-salad', category:'salads', name:'Салат в пачке чипсов', description:'Салат, соус и хруст чипсов в необычной подаче.', price:230, emoji:'🥔', visual:'yellow', tags:['салат','чипсы'] },
 
-  { id:'smoothie', category:'drinks', name:'Смузи', description:'Фруктовый заряд свежести.', price:170, emoji:'🥤', visual:'green', tags:[] },
-  { id:'milkshake', category:'drinks', name:'Коктейль', description:'Молочный коктейль, густой и холодный.', price:160, emoji:'🥛', visual:'pink', tags:[] },
-  { id:'soda', category:'drinks', name:'Газировка 0.5', description:'Кола, лимонад или другая газировка.', price:90, emoji:'🥤', visual:'orange', tags:[] },
-  { id:'juice', category:'drinks', name:'Сок 0.3', description:'Яблоко, апельсин, мультифрукт.', price:80, emoji:'🧃', visual:'yellow', tags:[] },
-  { id:'tea', category:'drinks', name:'Чай', description:'Чёрный, зелёный или фруктовый.', price:70, emoji:'🍵', visual:'green', tags:[] },
-  { id:'coffee', category:'drinks', name:'Кофе', description:'Американо, капучино или латте.', price:110, emoji:'☕', visual:'dark', tags:[] },
+  { id:'vienna-waffle', category:'desserts', name:'Венские вафли', description:'Теплые вафли с топпингом на выбор.', price:170, emoji:'🧇', visual:'yellow', tags:['вафли','десерт'] },
+  { id:'syrniki', category:'desserts', name:'Сырники', description:'Нежные сырники со сметаной или топпингом.', price:190, emoji:'🥞', visual:'pink', tags:['сырники','десерт'] },
+  { id:'baklava-icecream', category:'desserts', name:'Пахлава с мороженым', description:'Восточная сладость и холодное мороженое.', price:220, emoji:'🍨', visual:'orange', tags:['пахлава','мороженое'] },
+  { id:'napoleon', category:'desserts', name:'Торт «Наполеон»', description:'Классический слоеный кусок торта.', price:160, emoji:'🍰', visual:'yellow', tags:['торт','наполеон'] },
+  { id:'medovik', category:'desserts', name:'Торт «Медовик»', description:'Медовые коржи и нежный крем.', price:160, emoji:'🍰', visual:'pink', tags:['торт','медовик'] },
+  { id:'donuts', category:'desserts', name:'Пончики', description:'Сахарная пудра или сладкий топпинг.', price:130, emoji:'🍩', visual:'orange', tags:['пончики'] },
+
+  { id:'smoothie', category:'drinks', name:'Смузи', description:'Фруктовый заряд свежести.', price:170, emoji:'🥤', visual:'green', tags:['смузи'] },
+  { id:'milkshake', category:'drinks', name:'Коктейль', description:'Молочный коктейль, густой и холодный.', price:160, emoji:'🥛', visual:'pink', tags:['коктейль'] },
+  { id:'soda', category:'drinks', name:'Газировка', description:'Кола, лимонад или другая газировка 0.5.', price:90, emoji:'🥤', visual:'orange', tags:['газировка'] },
+  { id:'juice', category:'drinks', name:'Соки', description:'Яблоко, апельсин, мультифрукт.', price:80, emoji:'🧃', visual:'yellow', tags:['сок','соки'] },
+  { id:'tea', category:'drinks', name:'Чай', description:'Черный, зеленый или фруктовый.', price:70, emoji:'🍵', visual:'green', tags:['чай'] },
+  { id:'coffee', category:'drinks', name:'Кофе', description:'Американо, капучино или латте.', price:110, emoji:'☕', visual:'dark', tags:['кофе'] },
 
   ...sauces.map((name, index) => ({ id:`sauce-${index}`, category:'sauces', name:`Соус «${name}»`, description:'Порция соуса к любому блюду.', price:35, emoji:'🥣', visual:['orange','green','pink','yellow'][index % 4], tags:[name.toLowerCase()] }))
 ];
 
 const combos = [
-  { id:'shawarma-combo', name:'Шаурма Комбо', description:'Шаурма стандартная + фри + напиток + соус.', price:390, emoji:'🌯', visual:'orange', flags:['мясо','напиток','соус'] },
-  { id:'big-hunger', name:'Большой голод', description:'Шаурма большая + фри + 6 наггетсов + напиток + 2 соуса.', price:590, emoji:'🌯', visual:'dark', flags:['мясо','напиток','twoSauces'] },
-  { id:'burger-combo', name:'Бургер Комбо', description:'Бургер + фри + напиток + соус.', price:430, emoji:'🍔', visual:'pink', flags:['drink','sauce'] },
-  { id:'wings-combo', name:'Крылья Комбо', description:'Крылышки + фри/кольца + напиток + 2 соуса.', price:490, emoji:'🍗', visual:'yellow', flags:['side','drink','twoSauces'] },
-  { id:'doner-combo', name:'Донер Комбо', description:'Донер + фри + напиток + соус.', price:410, emoji:'🥙', visual:'green', flags:['мясо','drink','sauce'] },
-  { id:'gyres-combo', name:'Гирес Комбо', description:'Гирес + фри + напиток + мацони/чесночный.', price:410, emoji:'🫓', visual:'orange', flags:['meat','drink','gyresSauce'] },
-  { id:'tantuni-combo', name:'Тантуни Комбо', description:'Тантуни + фри/кольца + напиток + соус.', price:420, emoji:'🌮', visual:'pink', flags:['meat','side','drink','sauce'] },
-  { id:'sandwich-combo', name:'Сэндвич Комбо', description:'Сэндвич + фри + напиток + соус.', price:400, emoji:'🥪', visual:'dark', flags:['sandwich','drink','sauce'] },
-  { id:'fish-combo', name:'Рыбный Комбо', description:'Рыбные наггетсы + фри + напиток + соус.', price:390, emoji:'🐟', visual:'green', flags:['drink','fishSauce'] },
-  { id:'quesadilla-combo', name:'Кесадилья Комбо', description:'Кесадилья + 4 наггетса/кольца + напиток + соус.', price:440, emoji:'🫔', visual:'yellow', flags:['side','drink','sauce'] },
-  { id:'morning-combo', name:'Утреннее комбо', description:'Сырники или вафля + кофе/чай + мини-смузи/сок.', price:320, emoji:'☕', visual:'pink', flags:['morning'] },
+  { id:'burger-combo', name:'Бургер Комбо', description:'Бургер + картофель фри + напиток + соус.', price:430, emoji:'🍔', visual:'orange', flags:['drink','sauce'] },
+  { id:'shawarma-combo', name:'Шаурма Комбо', description:'Стандартная шаурма с курицей или говядиной + фри + напиток + соус.', price:410, emoji:'🌯', visual:'dark', flags:['meat','drink','sauce'] },
+  { id:'doner-combo', name:'Донер Комбо', description:'Донер с курицей или говядиной + фри + напиток + соус.', price:410, emoji:'🥙', visual:'green', flags:['meat','drink','sauce'] },
+  { id:'gyros-combo', name:'Гирос Комбо', description:'Гирос + фри + напиток + мацони или чесночный соус.', price:420, emoji:'🥙', visual:'orange', flags:['drink','gyrosSauce'] },
+  { id:'sandwich-combo', name:'Сэндвич Комбо', description:'Сэндвич на выбор + фри + напиток + соус.', price:400, emoji:'🥪', visual:'pink', flags:['sandwich','drink','sauce'] },
+  { id:'hotdog-combo', name:'Хот-дог Комбо', description:'Хот-дог + картофель фри + напиток + соус.', price:330, emoji:'🌭', visual:'yellow', flags:['drink','sauce'] },
+  { id:'wings-combo', name:'Крылышки Комбо', description:'Крылышки + фри или луковые кольца + напиток + 2 соуса.', price:490, emoji:'🍗', visual:'dark', flags:['side','drink','twoSauces'] },
+  { id:'fish-combo', name:'Рыбные наггетсы Комбо', description:'Рыбные наггетсы + фри + напиток + соус.', price:390, emoji:'🐟', visual:'green', flags:['drink','fishSauce'] },
+  { id:'quesadilla-combo', name:'Кесадилья Комбо', description:'Кесадилья + наггетсы или луковые кольца + напиток + соус.', price:440, emoji:'🫔', visual:'yellow', flags:['side','drink','sauce'] },
+  { id:'morning-combo', name:'Утреннее комбо', description:'Сырники или венские вафли + кофе/чай + сок или смузи.', price:320, emoji:'☕', visual:'pink', flags:['morning'] },
   { id:'sweet-combo', name:'Сладкое комбо', description:'Десерт на выбор + кофе или чай.', price:280, emoji:'🍰', visual:'orange', flags:['sweet'] }
 ];
 
 const sets = [
-  { id:'duet', name:'Сет «Дуэт»', size:'НА ДВОИХ', description:'2 стандартные шаурмы, большая фри, 6 наггетсов, 2 напитка и 2 соуса.', price:890, emoji:'🌯' },
-  { id:'shawarma-party', name:'Сет «Шаурма Party»', size:'НА 3–4', description:'3 стандартные шаурмы, 2 большие фри, 12 наггетсов, кольца, напитки и 4 соуса.', price:1590, emoji:'🎉' },
-  { id:'burger-band', name:'Сет «Бургер Банда»', size:'НА 2–3', description:'2 бургера, 2 фри, крылышки, 6 наггетсов, напитки и соусы.', price:1280, emoji:'🍔' },
-  { id:'east', name:'Сет «Восточный»', size:'НА 2–3', description:'Донер, гирес, тантуни, фри, кольца, 3 напитка и 3 соуса.', price:1260, emoji:'🫓' },
-  { id:'friends-evening', name:'Сет «Вечер с друзьями»', size:'НА 4–5', description:'2 большие шаурмы, 2 бургера, крылышки, 12 наггетсов, фри, кольца, гренки, напитки и соусы.', price:2290, emoji:'🔥' },
-  { id:'crispy', name:'Сет «Хрустящий»', size:'НА 2–3', description:'Крылышки, 9 наггетсов, рыбные наггетсы, кольца, гренки, фри, 3 напитка и 4 соуса.', price:1390, emoji:'🍗' },
-  { id:'family', name:'Сет «Семейный»', size:'НА 4', description:'4 маленькие шаурмы или 4 сэндвича, 2 большие фри, 12 наггетсов, салат, напитки и соусы.', price:1690, emoji:'👨‍👩‍👧‍👦' },
-  { id:'sweet-table', name:'Сет «Сладкий стол»', size:'НА КОМПАНИЮ', description:'Вафли, сырники, пончики, пахлава с мороженым, 2 куска торта и чай/кофе.', price:1190, emoji:'🍩' }
+  { id:'duet', name:'Сет «Дуэт»', size:'НА ДВОИХ', description:'2 стандартные шаурмы, большая фри, наггетсы, 2 напитка и 2 соуса.', price:890, emoji:'🌯' },
+  { id:'burger-pair', name:'Сет «Бургер Пара»', size:'НА ДВОИХ', description:'2 бургера, фри, луковые кольца, 2 напитка и 2 соуса.', price:960, emoji:'🍔' },
+  { id:'sandwich-box', name:'Сет «Сэндвич Бокс»', size:'НА 3-4', description:'Сэндвич с курицей, сэндвич с ветчиной, американский сэндвич, чиабатта-сэндвич, фри и напитки.', price:1390, emoji:'🥪' },
+  { id:'east', name:'Сет «Восточный»', size:'НА 3', description:'Донер, гирос, пита, кесадилья, фри, напитки и 3 соуса.', price:1290, emoji:'🥙' },
+  { id:'crispy', name:'Сет «Хрустящий»', size:'НА КОМПАНИЮ', description:'Крылышки, наггетсы, рыбные наггетсы, луковые кольца, гренки, фри и 4 соуса.', price:1390, emoji:'🍗' },
+  { id:'family', name:'Сет «Семейный»', size:'НА 4', description:'2 шаурмы, 2 бургера, большая фри, наггетсы, салат «Цезарь», напитки и соусы.', price:1790, emoji:'🍔' },
+  { id:'salad-lunch', name:'Сет «Легкий обед»', size:'НА 2-3', description:'Цезарь, кавказский салат, салат «Биг Хит», соки и 2 соуса.', price:790, emoji:'🥗' },
+  { id:'sweet-table', name:'Сет «Сладкий стол»', size:'НА КОМПАНИЮ', description:'Венские вафли, сырники, пахлава с мороженым, Наполеон, медовик, пончики и чай/кофе.', price:1190, emoji:'🍩' }
 ];
 
 const builderBase = {
@@ -116,9 +117,9 @@ const builderBase = {
   },
   sandwich: {
     title: 'Собери свой сэндвич', icon: '🥪', label: 'Сэндвич',
-    sizes: [{ name:'Багет', price:210 }, { name:'Тостовый хлеб', price:190 }, { name:'Чиабатта', price:240 }, { name:'Батон', price:200 }],
-    breads: ['Багет','Тостовый хлеб','Чиабатта','Батон'],
-    proteinPrices: { 'Курица': 0, 'Говядина': 45 },
+    sizes: [{ name:'Сэндвич', price:210 }, { name:'Жареный сэндвич', price:230 }, { name:'Американский сэндвич', price:260 }, { name:'Перекрестный сэндвич', price:240 }, { name:'Чиабатта-сэндвич', price:260 }],
+    breads: [],
+    proteinPrices: { 'Курица': 0, 'Ветчина': 0, 'Говядина': 45 },
     veggies: ['Айсберг', 'Огурец', 'Томат', 'Маринованный огурец', 'Красный лук'],
     extras: [{ name:'Сыр', price:35 }, { name:'Двойное мясо', price:85 }, { name:'Фри внутрь', price:35 }, { name:'Халапеньо', price:30 }, { name:'Грибы', price:40 }]
   }
@@ -523,11 +524,11 @@ function openCombo(id){
   const f=currentCombo.flags||[]; let html=`<p style="margin:0;color:var(--muted);font-size:13px">${currentCombo.description}</p>`;
   if(f.includes('мясо')||f.includes('meat')) html+=getComboControl('Выбери мясо',['Курица','Говядина'],'meat');
   if(f.includes('side')) html+=getComboControl('Гарнир',['Картофель фри','Луковые кольца'],'side');
-  if(f.includes('sandwich')) html+=getComboControl('Сэндвич',['Жареный','Американский','Чиабатта-сэндвич'],'sandwich');
-  if(f.includes('morning')){html+=getComboControl('Основа',['Сырники','Венская вафля'],'morningBase');html+=getComboControl('Горячий напиток',['Кофе','Чай'],'morningHot');html+=getComboControl('Холодный напиток',['Мини-смузи','Сок'],'morningCold');}
+  if(f.includes('sandwich')) html+=getComboControl('Сэндвич',['Сэндвич с курицей','Сэндвич с ветчиной','Жареный сэндвич','Американский сэндвич','Перекрестный с курицей','Перекрестный с ветчиной','Чиабатта-сэндвич'],'sandwich');
+  if(f.includes('morning')){html+=getComboControl('Основа',['Сырники','Венские вафли'],'morningBase');html+=getComboControl('Горячий напиток',['Кофе','Чай'],'morningHot');html+=getComboControl('Холодный напиток',['Смузи','Сок'],'morningCold');}
   if(f.includes('sweet')){html+=getComboControl('Десерт',['Пахлава с мороженым','Пончики','Наполеон','Медовик'],'sweetBase');html+=getComboControl('Напиток',['Кофе','Чай'],'sweetDrink');}
   if(f.includes('drink')||f.includes('напиток')) html+=getComboControl('Напиток',drinks,'drink');
-  if(f.includes('gyresSauce')) html+=getComboControl('Соус',['Мацони','Чесночный'],'sauce');
+  if(f.includes('gyrosSauce')||f.includes('gyresSauce')) html+=getComboControl('Соус',['Мацони','Чесночный'],'sauce');
   else if(f.includes('fishSauce')) html+=getComboControl('Соус',['Кисло-сладкий','Чесночный'],'sauce');
   else if(f.includes('sauce')||f.includes('соус')) html+=getComboControl('Соус',sauces,'sauce');
   if(f.includes('twoSauces')) html+=getComboControl('Два соуса',sauces,'twoSauces','checkbox',false);
@@ -582,14 +583,14 @@ function activateChoiceOption(control){
 }
 function renderBuilder(){
   const base=builderBase[currentBuilderType]; builderState ||= initialBuilderState(currentBuilderType);
-  $('#builder-title').textContent=base.title; $('#builder-summary-title').textContent=builderState.size+' '+base.label; $('#builder-preview').textContent=base.icon;
+  $('#builder-title').textContent=base.title; $('#builder-summary-title').textContent=currentBuilderType==='sandwich'?builderState.size:builderState.size+' '+base.label; $('#builder-preview').textContent=base.icon;
   const sizes=base.sizes.map(s=>radioOption('builder-size',s.name,builderState.size===s.name,formatPrice(s.price))).join('');
   const meats=Object.entries(base.proteinPrices).map(([name,price])=>radioOption('builder-meat',name,builderState.meat===name,price?`+${formatPrice(price)}`:'в базе')).join('');
   const vegetables=base.veggies.map(v=>checkboxOption('builder-veggies',v,builderState.veggies.includes(v),'')).join('');
   const sauceList=sauces.map(s=>checkboxOption('builder-sauces',s,builderState.sauces.includes(s),'')).join('');
   const extras=base.extras.map(e=>checkboxOption('builder-extras',e.name,builderState.extras.includes(e.name),`+${formatPrice(e.price)}`)).join('');
   $('#builder-form').innerHTML=`
-    <section class="form-block"><h3>${currentBuilderType==='sandwich'?'Выбери хлеб':'Выбери размер'}</h3><div class="option-grid">${sizes}</div></section>
+    <section class="form-block"><h3>${currentBuilderType==='sandwich'?'Выбери основу':'Выбери размер'}</h3><div class="option-grid">${sizes}</div></section>
     <section class="form-block"><h3>Мясо</h3><div class="option-grid option-grid--2">${meats}</div></section>
     <section class="form-block"><h3>Овощи и зелень</h3><p class="form-hint">Сними галочки с того, чего не хочешь.</p><div class="option-grid">${vegetables}</div></section>
     <section class="form-block"><h3>Соусы</h3><p class="form-hint">До 2 соусов — бесплатно. Каждый следующий +35 ₽.</p><div class="option-grid">${sauceList}</div></section>
@@ -837,7 +838,7 @@ function filterMenuItem(item, filter){
   if(filter === 'spicy') return text.includes('чили') || text.includes('халапеньо') || text.includes('остр');
   if(filter === 'beef') return text.includes('говядин');
   if(filter === 'under300') return item.price <= 300;
-  if(filter === 'meatless') return !/(куриц|говядин|мяс|крыл|наггет|бургер|донер|шаурм|бекон)/.test(text);
+  if(filter === 'meatless') return !/(куриц|говядин|мяс|крыл|наггет|бургер|донер|шаурм|бекон|ветчин)/.test(text);
   return true;
 }
 function renderSearch(query=''){
