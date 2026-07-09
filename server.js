@@ -138,7 +138,7 @@ async function telegram(method, payload) {
 }
 
 function telegramChatIds() {
-  const raw = process.env.TELEGRAM_CHAT_IDS || process.env.TELEGRAM_CHAT_ID || '';
+  const raw = [process.env.TELEGRAM_CHAT_ID, process.env.TELEGRAM_CHAT_IDS].filter(Boolean).join(',');
   return [...new Set(String(raw).split(/[,\s;]+/).map(value => value.trim()).filter(Boolean))];
 }
 

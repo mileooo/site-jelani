@@ -212,7 +212,7 @@ async function telegram(env, method, payload) {
 }
 
 function telegramChatIds(env) {
-  const raw = env.TELEGRAM_CHAT_IDS || env.TELEGRAM_CHAT_ID || '';
+  const raw = [env.TELEGRAM_CHAT_ID, env.TELEGRAM_CHAT_IDS].filter(Boolean).join(',');
   return [...new Set(String(raw).split(/[,\s;]+/).map(value => value.trim()).filter(Boolean))];
 }
 
