@@ -137,16 +137,22 @@ async function telegram(method, payload) {
   return data.result;
 }
 
-async function sendOrder(order) {
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!chatId) throw new Error('TELEGRAM_CHAT_ID не задан');
+function telegramChatIds() {
+  const raw = process.env.TELEGRAM_CHAT_IDS || process.env.TELEGRAM_CHAT_ID || '';
+  return [...new Set(String(raw).split(/[,\s;]+/).map(value => value.trim()).filter(Boolean))];
+}
 
-  return telegram('sendMessage', {
-    chat_id: chatId,
-    text: orderMessage(order),
-    parse_mode: 'HTML',
-    reply_markup: statusKeyboard(order)
-  });
+async function sendOrder(order) {
+  const chatIds = telegramChatIds();
+  if (!chatIds.length) throw new Error('TELEGRAM_CHAT_ID не задан');
+
+  return Promise.all(chatIds.map(chatId => telegram('sendMessage', {
+      chat_id: chatId,
+      text: orderMessage(order),
+      parse_mode: 'HTML',
+      reply_markup: statusKeyboard(order)
+    })
+  ));
 }
 
 async function handleTelegramWebhook(req, res) {

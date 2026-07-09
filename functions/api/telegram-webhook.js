@@ -134,6 +134,40 @@ async function telegram(env, method, payload) {
   return data.result;
 }
 
+function messageRefs(previous, query) {
+  const refs = Array.isArray(previous?.messages) ? [...previous.messages] : [];
+  if (query?.message?.chat?.id && query?.message?.message_id) {
+    refs.push({ chatId: String(query.message.chat.id), messageId: query.message.message_id });
+  }
+
+  const seen = new Set();
+  return refs.filter(ref => {
+    const key = `${ref.chatId}:${ref.messageId}`;
+    if (!ref.chatId || !ref.messageId || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function editOrderMessages(env, record, query) {
+  const refs = messageRefs(record, query);
+  const replyMarkup = record.terminal
+    ? { inline_keyboard: [] }
+    : statusKeyboard(record.id, record.flow, record.statusIndex);
+
+  await Promise.all(refs.map(async ref => {
+    try {
+      await telegram(env, 'editMessageReplyMarkup', {
+        chat_id: ref.chatId,
+        message_id: ref.messageId,
+        reply_markup: replyMarkup
+      });
+    } catch {
+      // One unavailable chat must not block status updates for the other chats.
+    }
+  }));
+}
+
 export async function onRequestPost({ request, env }) {
   try {
     const update = await request.json();
@@ -152,6 +186,7 @@ export async function onRequestPost({ request, env }) {
       flow,
       trackToken: previous?.trackToken || '',
       messageId: previous?.messageId || query.message?.message_id,
+      messages: messageRefs(previous, query),
       total: previous?.total || 0,
       createdAt: previous?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -165,15 +200,7 @@ export async function onRequestPost({ request, env }) {
       text: `Статус ${orderId}: ${record.status}`
     });
 
-    if (query.message) {
-      await telegram(env, 'editMessageReplyMarkup', {
-        chat_id: query.message.chat.id,
-        message_id: query.message.message_id,
-        reply_markup: record.terminal
-          ? { inline_keyboard: [] }
-          : statusKeyboard(orderId, flow, record.statusIndex)
-      });
-    }
+    await editOrderMessages(env, record, query);
 
     return json({ ok: true, status: statusPayload(record) });
   } catch (error) {

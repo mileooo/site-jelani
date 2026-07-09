@@ -211,6 +211,28 @@ async function telegram(env, method, payload) {
   return data.result;
 }
 
+function telegramChatIds(env) {
+  const raw = env.TELEGRAM_CHAT_IDS || env.TELEGRAM_CHAT_ID || '';
+  return [...new Set(String(raw).split(/[,\s;]+/).map(value => value.trim()).filter(Boolean))];
+}
+
+async function sendOrderMessages(env, order) {
+  const chatIds = telegramChatIds(env);
+  if (!chatIds.length) throw new Error('TELEGRAM_CHAT_ID не задан');
+
+  const messages = [];
+  for (const chatId of chatIds) {
+    const result = await telegram(env, 'sendMessage', {
+      chat_id: chatId,
+      text: orderMessage(order),
+      parse_mode: 'HTML',
+      reply_markup: statusKeyboard(order)
+    });
+    messages.push({ chatId: String(chatId), messageId: result.message_id });
+  }
+  return messages;
+}
+
 async function ensureTelegramWebhook(request, env) {
   if (env.TELEGRAM_AUTO_WEBHOOK === 'off') return;
   const origin = new URL(request.url).origin;
@@ -225,7 +247,7 @@ async function ensureTelegramWebhook(request, env) {
   }
 }
 
-function createOrderRecord(order, messageId) {
+function createOrderRecord(order, messages) {
   const flow = orderFlow(order.delivery);
   const now = new Date().toISOString();
   const status = statusFromStep(flow, 0);
@@ -233,7 +255,8 @@ function createOrderRecord(order, messageId) {
   return {
     id: order.id,
     flow,
-    messageId,
+    messageId: messages[0]?.messageId,
+    messages,
     trackToken: order.trackingToken || '',
     total: Number(order.total || 0),
     createdAt: now,
@@ -247,23 +270,17 @@ export async function onRequestPost({ request, env }) {
     const order = await request.json();
     validateOrder(order);
 
-    if (!env.TELEGRAM_CHAT_ID) throw new Error('TELEGRAM_CHAT_ID не задан');
-
     await ensureTelegramWebhook(request, env);
 
-    const result = await telegram(env, 'sendMessage', {
-      chat_id: env.TELEGRAM_CHAT_ID,
-      text: orderMessage(order),
-      parse_mode: 'HTML',
-      reply_markup: statusKeyboard(order)
-    });
-
-    const record = createOrderRecord(order, result.message_id);
+    const messages = await sendOrderMessages(env, order);
+    const record = createOrderRecord(order, messages);
     const tracking = await saveOrderStatus(env, record);
 
     return json({
       ok: true,
-      messageId: result.message_id,
+      messageId: messages[0]?.messageId,
+      messages,
+      recipients: messages.length,
       tracking,
       status: statusPayload(record)
     });
