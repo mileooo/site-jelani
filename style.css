@@ -67,6 +67,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}a{text-decoratio
 .cart-promo label{display:block;margin-bottom:7px;color:#514943;font-size:11px;font-weight:800}
 .promo-row{display:grid;grid-template-columns:1fr auto;gap:8px}
 .promo-row input{min-width:0;padding:10px 11px;border:1px solid var(--line);border-radius:11px;background:var(--cream);outline:none;text-transform:uppercase}
+.promo-row input::placeholder{text-transform:none}
 .promo-row input:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,90,31,.12)}
 #promo-message{min-height:16px;margin:7px 0 0;color:var(--muted);font-size:10px;font-weight:800}
 .upsell-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:9px}
