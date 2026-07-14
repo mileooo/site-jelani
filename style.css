@@ -61,8 +61,9 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}a{text-decoratio
 .review-card strong{display:block;font:800 15px/1.2 Unbounded,Arial,sans-serif;letter-spacing:-.05em}
 .review-card span{display:block;margin-top:8px;color:var(--orange);font-size:13px;font-weight:800}
 .review-card p{margin:10px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
-.cart-drawer{position:relative;display:flex;flex-direction:column}
-.cart-items{flex:1;min-height:0;max-height:none}
+.cart-drawer{position:relative;display:flex;flex-direction:column;height:100dvh;max-height:100dvh;overflow:hidden}
+.cart-scroll{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+.cart-items{max-height:none;overflow:visible;padding-right:0}
 .cart-promo,.cart-upsells{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:15px;background:#fff}
 .cart-promo label{display:block;margin-bottom:7px;color:#514943;font-size:11px;font-weight:800}
 .promo-row{display:grid;grid-template-columns:1fr auto;gap:8px}
@@ -74,7 +75,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}a{text-decoratio
 .upsell-grid button{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:39px;padding:8px 10px;border:1px solid var(--line);border-radius:11px;background:var(--cream);color:var(--ink);font-size:12px;font-weight:800;text-align:left}
 .upsell-grid button:hover{border-color:var(--orange);background:#fff3e8}
 .upsell-grid strong{color:var(--orange);white-space:nowrap}
-.cart-summary{position:static;margin:14px -28px -28px;padding:16px 28px 28px}
+.cart-summary{position:relative;z-index:1;flex:0 0 auto;margin:14px -28px -28px;padding:16px 28px 28px;background:var(--cream)}
 .cart-summary .secondary-dark-btn{min-height:42px;margin-bottom:8px;background:transparent;border:1px solid var(--line);color:var(--ink);box-shadow:none}
 .cart-summary .secondary-dark-btn:hover{border-color:var(--orange);color:var(--orange);background:transparent}
 #cart-discount-row strong{color:var(--orange)}

@@ -236,23 +236,25 @@
   <div class="overlay" id="cart-overlay" aria-hidden="true">
     <aside class="cart-drawer" role="dialog" aria-modal="true" aria-label="Корзина">
       <div class="drawer-head"><div><p class="eyebrow">ТВОЙ ЗАКАЗ</p><h2>Корзина</h2></div><button class="icon-button" id="close-cart" type="button">×</button></div>
-      <div class="cart-items" id="cart-items"></div>
-      <div class="cart-empty" id="cart-empty">Корзина пока пустая.<br>Добавь что-нибудь сочное.</div>
-      <div class="cart-promo" id="cart-promo">
-        <label>Промокод для личного кабинета</label>
-        <div class="promo-row">
-          <input id="promo-code" placeholder="JELANI10" autocomplete="off" />
-          <button class="secondary-dark-btn" id="apply-promo" type="button">Применить</button>
+      <div class="cart-scroll">
+        <div class="cart-items" id="cart-items"></div>
+        <div class="cart-empty" id="cart-empty">Корзина пока пустая.<br>Добавь что-нибудь сочное.</div>
+        <div class="cart-promo" id="cart-promo">
+          <label>Промокод для личного кабинета</label>
+          <div class="promo-row">
+            <input id="promo-code" placeholder="JELANI10" autocomplete="off" />
+            <button class="secondary-dark-btn" id="apply-promo" type="button">Применить</button>
+          </div>
+          <p id="promo-message"></p>
         </div>
-        <p id="promo-message"></p>
-      </div>
-      <div class="cart-upsells" id="cart-upsells" hidden>
-        <p class="eyebrow">ДОБАВИТЬ К ЗАКАЗУ</p>
-        <div class="upsell-grid">
-          <button type="button" data-upsell="fries">Фри <strong>79 ₽</strong></button>
-          <button type="button" data-upsell="drink">Напиток <strong>69 ₽</strong></button>
-          <button type="button" data-upsell="sauce">Соус <strong>35 ₽</strong></button>
-          <button type="button" data-upsell="cheese">Сыр <strong>35 ₽</strong></button>
+        <div class="cart-upsells" id="cart-upsells" hidden>
+          <p class="eyebrow">ДОБАВИТЬ К ЗАКАЗУ</p>
+          <div class="upsell-grid">
+            <button type="button" data-upsell="fries">Фри <strong>79 ₽</strong></button>
+            <button type="button" data-upsell="drink">Напиток <strong>69 ₽</strong></button>
+            <button type="button" data-upsell="sauce">Соус <strong>35 ₽</strong></button>
+            <button type="button" data-upsell="cheese">Сыр <strong>35 ₽</strong></button>
+          </div>
         </div>
       </div>
       <div class="cart-summary">
