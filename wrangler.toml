@@ -3,8 +3,13 @@ main = "_worker.js"
 compatibility_date = "2025-01-01"
 workers_dev = true
 
-# Live client order tracking needs a Cloudflare KV binding named ORDER_STATUS.
-# Keep it configured in Cloudflare Dashboard, or add [[kv_namespaces]] with a real id.
+# Bind a Cloudflare D1 database as DB for customers, orders and live statuses.
+# ORDER_STATUS KV remains supported only as a temporary fallback.
+[[d1_databases]]
+binding = "DB"
+database_name = "jelani-db"
+database_id = "c1ee0e8f-2f19-44da-9bac-d54c5d7b0e4d"
+
 [assets]
 directory = "."
 binding = "ASSETS"

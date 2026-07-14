@@ -1,4 +1,5 @@
 .env
+.wrangler/
 *.log
 server.stdout.log
 server.stderr.log

@@ -4,6 +4,74 @@ const JSON_HEADERS = {
 
 const ORDER_TTL_SECONDS = 60 * 60 * 24 * 3;
 
+let databaseSchemaReady;
+
+const DATABASE_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    order_count INTEGER NOT NULL DEFAULT 0,
+    total_spent INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE TABLE IF NOT EXISTS orders (
+    id TEXT PRIMARY KEY,
+    tracking_token TEXT NOT NULL,
+    customer_id INTEGER,
+    customer_name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    flow TEXT NOT NULL,
+    delivery_method TEXT NOT NULL,
+    address TEXT NOT NULL DEFAULT '',
+    payment_method TEXT NOT NULL,
+    comment TEXT NOT NULL DEFAULT '',
+    promo_code TEXT NOT NULL DEFAULT '',
+    subtotal INTEGER NOT NULL DEFAULT 0,
+    discount INTEGER NOT NULL DEFAULT 0,
+    total INTEGER NOT NULL DEFAULT 0,
+    status_index INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    status_detail TEXT NOT NULL,
+    canceled INTEGER NOT NULL DEFAULT 0,
+    terminal INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS order_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id TEXT NOT NULL,
+    product_id TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL,
+    details TEXT NOT NULL DEFAULT '',
+    unit_price INTEGER NOT NULL,
+    quantity INTEGER NOT NULL,
+    line_total INTEGER NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+  )`,
+  `CREATE TABLE IF NOT EXISTS order_status_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id TEXT NOT NULL,
+    status_index INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+  )`,
+  `CREATE TABLE IF NOT EXISTS order_messages (
+    order_id TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    message_id INTEGER NOT NULL,
+    PRIMARY KEY (order_id, chat_id, message_id),
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+  )`,
+  'CREATE INDEX IF NOT EXISTS idx_orders_phone ON orders(phone)',
+  'CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_status_events_order ON order_status_events(order_id)'
+];
+
 const FLOW_STEPS = {
   pickup: [
     { label: 'Заказ создан', detail: 'Заказ ушел на кухню.' },
@@ -128,18 +196,100 @@ function orderKey(orderId) {
   return `order:${orderId}`;
 }
 
+async function ensureDatabase(env) {
+  if (!env.DB) return false;
+  if (!databaseSchemaReady) {
+    databaseSchemaReady = env.DB.batch(
+      DATABASE_SCHEMA.map(statement => env.DB.prepare(statement))
+    ).catch(error => {
+      databaseSchemaReady = null;
+      throw error;
+    });
+  }
+  await databaseSchemaReady;
+  return true;
+}
+
+function databaseStatusRecord(row, messages = []) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    flow: row.flow,
+    trackToken: row.trackToken,
+    statusIndex: Number(row.statusIndex),
+    status: row.status,
+    detail: row.detail,
+    canceled: Boolean(row.canceled),
+    terminal: Boolean(row.terminal),
+    total: Number(row.total || 0),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    messages,
+    storage: 'd1'
+  };
+}
+
 async function readOrderStatus(env, orderId) {
+  if (env.DB) {
+    await ensureDatabase(env);
+    const row = await env.DB.prepare(`SELECT
+      id,
+      flow,
+      tracking_token AS trackToken,
+      status_index AS statusIndex,
+      status,
+      status_detail AS detail,
+      canceled,
+      terminal,
+      total,
+      created_at AS createdAt,
+      updated_at AS updatedAt
+      FROM orders WHERE id = ?`).bind(orderId).first();
+    if (row) {
+      const { results = [] } = await env.DB.prepare(`SELECT
+        chat_id AS chatId,
+        message_id AS messageId
+        FROM order_messages WHERE order_id = ?`).bind(orderId).all();
+      return databaseStatusRecord(row, results);
+    }
+  }
+
   if (!env.ORDER_STATUS) return null;
   const raw = await env.ORDER_STATUS.get(orderKey(orderId));
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    return { ...JSON.parse(raw), storage: 'kv' };
   } catch {
     return null;
   }
 }
 
 async function saveOrderStatus(env, record) {
+  if (env.DB && record.storage !== 'kv') {
+    await ensureDatabase(env);
+    const statements = [
+      env.DB.prepare(`UPDATE orders SET
+        status_index = ?, status = ?, status_detail = ?, canceled = ?, terminal = ?, updated_at = ?
+        WHERE id = ?`).bind(
+        Number(record.statusIndex), record.status, record.detail,
+        record.canceled ? 1 : 0, record.terminal ? 1 : 0, record.updatedAt, record.id
+      ),
+      env.DB.prepare(`INSERT INTO order_status_events
+        (order_id, status_index, status, detail, created_at)
+        VALUES (?, ?, ?, ?, ?)`).bind(
+        record.id, Number(record.statusIndex), record.status, record.detail, record.updatedAt
+      )
+    ];
+    for (const message of record.messages || []) {
+      statements.push(env.DB.prepare(`INSERT OR IGNORE INTO order_messages
+        (order_id, chat_id, message_id) VALUES (?, ?, ?)`).bind(
+        record.id, String(message.chatId), Number(message.messageId)
+      ));
+    }
+    await env.DB.batch(statements);
+    return true;
+  }
+
   if (!env.ORDER_STATUS) return false;
   await env.ORDER_STATUS.put(orderKey(record.id), JSON.stringify(record), {
     expirationTtl: ORDER_TTL_SECONDS
@@ -147,12 +297,92 @@ async function saveOrderStatus(env, record) {
   return true;
 }
 
+async function createDatabaseOrder(env, order, record) {
+  if (!env.DB) return false;
+  await ensureDatabase(env);
+
+  const phone = normalizeRussianPhone(order.phone);
+  const statements = [
+    env.DB.prepare(`INSERT INTO customers
+      (phone, name, first_seen_at, last_seen_at, order_count, total_spent)
+      VALUES (?, ?, ?, ?, 1, ?)
+      ON CONFLICT(phone) DO UPDATE SET
+        name = excluded.name,
+        last_seen_at = excluded.last_seen_at,
+        order_count = customers.order_count + 1,
+        total_spent = customers.total_spent + excluded.total_spent`).bind(
+      phone, String(order.name).trim(), record.createdAt, record.createdAt, Number(order.total || 0)
+    ),
+    env.DB.prepare(`INSERT INTO orders
+      (id, tracking_token, customer_id, customer_name, phone, flow, delivery_method,
+       address, payment_method, comment, promo_code, subtotal, discount, total,
+       status_index, status, status_detail, canceled, terminal, created_at, updated_at)
+      VALUES (?, ?, (SELECT id FROM customers WHERE phone = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      order.id, record.trackToken, phone, String(order.name).trim(), phone,
+      record.flow, flowDelivery(record.flow), String(order.address || ''), String(order.payment || ''),
+      String(order.comment || ''), String(order.promo || ''), Number(order.subtotal || 0),
+      Number(order.discount || 0), Number(order.total || 0), Number(record.statusIndex),
+      record.status, record.detail, record.canceled ? 1 : 0, record.terminal ? 1 : 0,
+      record.createdAt, record.updatedAt
+    ),
+    env.DB.prepare(`INSERT INTO order_status_events
+      (order_id, status_index, status, detail, created_at)
+      VALUES (?, ?, ?, ?, ?)`).bind(
+      record.id, Number(record.statusIndex), record.status, record.detail, record.createdAt
+    )
+  ];
+
+  for (const item of order.items) {
+    const quantity = Math.max(1, Number(item.qty || 1));
+    const unitPrice = Math.max(0, Number(item.price || 0));
+    statements.push(env.DB.prepare(`INSERT INTO order_items
+      (order_id, product_id, name, details, unit_price, quantity, line_total)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(
+      record.id, String(item.id || ''), String(item.name || ''), String(item.details || ''),
+      unitPrice, quantity, unitPrice * quantity
+    ));
+  }
+
+  await env.DB.batch(statements);
+  return true;
+}
+
+async function saveMessageRefs(env, record) {
+  if (!env.DB || !record.messages?.length) return;
+  await ensureDatabase(env);
+  await env.DB.batch(record.messages.map(message => env.DB.prepare(`INSERT OR IGNORE INTO order_messages
+    (order_id, chat_id, message_id) VALUES (?, ?, ?)`).bind(
+    record.id, String(message.chatId), Number(message.messageId)
+  )));
+}
+
 function validateOrder(order) {
   if (!order || typeof order !== 'object') throw new ValidationError('Некорректный заказ');
-  if (!order.name) throw new ValidationError('Нужно указать имя');
+  if (!/^JL-\d{7}$/.test(String(order.id || ''))) throw new ValidationError('Некорректный номер заказа');
+  if (!/^[a-f0-9]{32}$/.test(String(order.trackingToken || ''))) throw new ValidationError('Некорректный код отслеживания');
+  if (!String(order.name || '').trim() || String(order.name).length > 80) throw new ValidationError('Нужно указать имя');
   if (!validateRussianPhone(order.phone)) throw new ValidationError('Укажите российский мобильный номер в формате +7 9XX XXX-XX-XX');
-  if (!Array.isArray(order.items) || order.items.length === 0) throw new ValidationError('Корзина пустая');
-  if (order.delivery === 'Доставка' && !order.address) throw new ValidationError('Нужен адрес доставки');
+  if (!Array.isArray(order.items) || order.items.length === 0 || order.items.length > 60) throw new ValidationError('Корзина пустая или слишком большая');
+  if (!['Самовывоз', 'Доставка'].includes(order.delivery)) throw new ValidationError('Некорректный способ получения');
+  if (!['Наличными', 'Картой / СБП', 'Картой при получении'].includes(order.payment)) throw new ValidationError('Некорректный способ оплаты');
+  if (order.delivery === 'Доставка' && !String(order.address || '').trim()) throw new ValidationError('Нужен адрес доставки');
+  if (String(order.address || '').length > 300 || String(order.comment || '').length > 500) throw new ValidationError('Слишком длинный адрес или комментарий');
+  for (const item of order.items) {
+    const quantity = Number(item?.qty || 1);
+    const price = Number(item?.price);
+    if (!item?.name || String(item.name).length > 160 || !Number.isInteger(quantity) || quantity < 1 || quantity > 30 || !Number.isFinite(price) || price < 0) {
+      throw new ValidationError('В заказе есть некорректная позиция');
+    }
+  }
+  const subtotal = order.items.reduce((sum, item) => sum + Number(item.price) * Number(item.qty || 1), 0);
+  const discount = Number(order.discount || 0);
+  const total = Number(order.total);
+  if (!Number.isSafeInteger(subtotal) || subtotal < 0 || subtotal > 1000000 ||
+      !Number.isSafeInteger(discount) || discount < 0 || discount > subtotal ||
+      !Number.isSafeInteger(total) || total !== subtotal - discount ||
+      Number(order.subtotal) !== subtotal) {
+    throw new ValidationError('Некорректная сумма заказа');
+  }
   if (order.promo) {
     const profilePhone = normalizeRussianPhone(order.profile?.phone);
     const orderPhone = normalizeRussianPhone(order.phone);
@@ -288,11 +518,19 @@ async function ensureTelegramWebhook(request, env) {
   try {
     await telegram(env, 'setWebhook', {
       url: webhookUrl,
-      allowed_updates: ['callback_query']
+      allowed_updates: ['callback_query'],
+      secret_token: await telegramWebhookSecret(env)
     });
   } catch {
     // Заказ не должен падать, если Telegram временно не дал обновить webhook.
   }
+}
+
+async function telegramWebhookSecret(env) {
+  if (!env.TELEGRAM_BOT_TOKEN) return '';
+  const bytes = new TextEncoder().encode(env.TELEGRAM_BOT_TOKEN);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function createOrderRecord(order, messages) {
@@ -319,9 +557,14 @@ async function handleOrder(request, env) {
 
   await ensureTelegramWebhook(request, env);
 
+  const record = createOrderRecord(order, []);
+  const database = await createDatabaseOrder(env, order, record);
   const messages = await sendOrderMessages(env, order);
-  const record = createOrderRecord(order, messages);
-  const tracking = await saveOrderStatus(env, record);
+  record.messages = messages;
+  record.messageId = messages[0]?.messageId;
+
+  if (database) await saveMessageRefs(env, record);
+  const tracking = database || await saveOrderStatus(env, record);
 
   return json({
     ok: true,
@@ -329,13 +572,14 @@ async function handleOrder(request, env) {
     messages,
     recipients: messages.length,
     tracking,
+    storage: database ? 'd1' : tracking ? 'kv' : 'none',
     status: statusPayload(record)
   });
 }
 
 async function handleOrderStatus(request, env) {
-  if (!env.ORDER_STATUS) {
-    return json({ ok: false, error: 'ORDER_STATUS storage is not configured' }, 503);
+  if (!env.DB && !env.ORDER_STATUS) {
+    return json({ ok: false, error: 'Хранилище заказов не подключено' }, 503);
   }
 
   const url = new URL(request.url);
@@ -356,6 +600,12 @@ async function handleOrderStatus(request, env) {
 }
 
 async function handleTelegramWebhook(request, env) {
+  const expectedSecret = await telegramWebhookSecret(env);
+  const actualSecret = request.headers.get('x-telegram-bot-api-secret-token') || '';
+  if (!expectedSecret || actualSecret !== expectedSecret) {
+    return json({ ok: false, error: 'Forbidden' }, 403);
+  }
+
   const update = await request.json();
   const query = update.callback_query;
 
@@ -367,6 +617,13 @@ async function handleTelegramWebhook(request, env) {
   const flow = rawFlow === 'delivery' ? 'delivery' : 'pickup';
   const updateStatus = statusFromStep(flow, step);
   const previous = await readOrderStatus(env, orderId);
+  if (!previous) {
+    await telegram(env, 'answerCallbackQuery', {
+      callback_query_id: query.id,
+      text: `Заказ ${orderId} не найден`
+    });
+    return json({ ok: false, error: 'Заказ не найден' }, 404);
+  }
   const record = {
     id: orderId,
     flow,
@@ -376,6 +633,7 @@ async function handleTelegramWebhook(request, env) {
     total: previous?.total || 0,
     createdAt: previous?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    storage: previous.storage,
     ...updateStatus
   };
 
@@ -389,6 +647,23 @@ async function handleTelegramWebhook(request, env) {
   await editOrderMessages(env, record, query);
 
   return json({ ok: true, status: statusPayload(record) });
+}
+
+async function handleHealth(env) {
+  let database = false;
+  if (env.DB) {
+    await ensureDatabase(env);
+    await env.DB.prepare('SELECT 1 AS ok').first();
+    database = true;
+  }
+
+  return json({
+    ok: true,
+    database,
+    statusStorage: database ? 'd1' : env.ORDER_STATUS ? 'kv' : 'none',
+    telegram: Boolean(env.TELEGRAM_BOT_TOKEN && telegramChatIds(env).length),
+    telegramRecipients: telegramChatIds(env).length
+  });
 }
 
 export default {
@@ -409,6 +684,11 @@ export default {
       if (url.pathname === '/api/telegram-webhook') {
         if (request.method !== 'POST') return json({ ok: false, error: 'Method not allowed' }, 405);
         return await handleTelegramWebhook(request, env);
+      }
+
+      if (url.pathname === '/api/health') {
+        if (request.method !== 'GET') return json({ ok: false, error: 'Method not allowed' }, 405);
+        return await handleHealth(env);
       }
 
       if (env.ASSETS) {
