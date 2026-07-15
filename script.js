@@ -81,18 +81,29 @@ const menuItems = [
   ...sauces.map((name, index) => ({ id:`sauce-${index}`, category:'sauces', name:`Соус «${name}»`, description:'Порция соуса к любому блюду.', price:35, emoji:'🥣', visual:['orange','green','pink','yellow'][index % 4], tags:[name.toLowerCase()] }))
 ];
 
+const comboCategories = [
+  { id:'all', label:'Все' },
+  { id:'shawarma', label:'Шаурма и донер' },
+  { id:'burgers', label:'Бургеры и сэндвичи' },
+  { id:'chicken', label:'Курица' },
+  { id:'fish', label:'Рыба' },
+  { id:'morning', label:'Завтрак' },
+  { id:'duo', label:'На двоих' }
+];
+
 const combos = [
-  { id:'burger-combo', name:'Бургер Комбо', description:'Бургер + картофель фри + напиток + соус.', price:430, emoji:'🍔', visual:'orange', flags:['drink','sauce'] },
-  { id:'shawarma-combo', name:'Шаурма Комбо', description:'Стандартная шаурма с курицей или говядиной + фри + напиток + соус.', price:410, emoji:'🌯', visual:'dark', flags:['meat','drink','sauce'] },
-  { id:'doner-combo', name:'Донер Комбо', description:'Донер с курицей или говядиной + фри + напиток + соус.', price:410, emoji:'🥙', visual:'green', flags:['meat','drink','sauce'] },
-  { id:'gyros-combo', name:'Гирос Комбо', description:'Гирос + фри + напиток + мацони или чесночный соус.', price:420, emoji:'🥙', visual:'orange', flags:['drink','gyrosSauce'] },
-  { id:'sandwich-combo', name:'Сэндвич Комбо', description:'Сэндвич на выбор + фри + напиток + соус.', price:400, emoji:'🥪', visual:'pink', flags:['sandwich','drink','sauce'] },
-  { id:'hotdog-combo', name:'Хот-дог Комбо', description:'Хот-дог + картофель фри + напиток + соус.', price:330, emoji:'🌭', visual:'yellow', flags:['drink','sauce'] },
-  { id:'wings-combo', name:'Крылышки Комбо', description:'Крылышки + фри или луковые кольца + напиток + 2 соуса.', price:490, emoji:'🍗', visual:'dark', flags:['side','drink','twoSauces'] },
-  { id:'fish-combo', name:'Рыбные наггетсы Комбо', description:'Рыбные наггетсы + фри + напиток + соус.', price:390, emoji:'🐟', visual:'green', flags:['drink','fishSauce'] },
-  { id:'quesadilla-combo', name:'Кесадилья Комбо', description:'Кесадилья + наггетсы или луковые кольца + напиток + соус.', price:440, emoji:'🫔', visual:'yellow', flags:['side','drink','sauce'] },
-  { id:'morning-combo', name:'Утреннее комбо', description:'Сырники или венские вафли + кофе/чай + сок или смузи.', price:320, emoji:'☕', visual:'pink', flags:['morning'] },
-  { id:'sweet-combo', name:'Сладкое комбо', description:'Десерт на выбор + кофе или чай.', price:280, emoji:'🍰', visual:'orange', flags:['sweet'] }
+  { id:'shawarma-combo', categories:['shawarma','chicken'], name:'Шаурма Комбо', description:'Шаурма, хрустящий фри, напиток и соусы на выбор.', price:410, sizes:[{name:'Стандартный',price:410},{name:'Большой',price:490}], saving:85, badge:'ХИТ', image:'images/hero-main.png', emoji:'🌯', flags:['meat','drink','shawarmaSauces','friesSauce'], composition:['Шаурма','Фри','Напиток','Соусы в шаурму','Соус к фри'] },
+  { id:'burger-combo', categories:['burgers'], name:'Бургер Комбо', description:'Фирменный бургер, картофель фри, напиток и соус к фри.', price:430, sizes:[{name:'Стандартный',price:430},{name:'Большой',price:510}], saving:75, badge:'ХИТ', image:'images/hero-slide-2.png', emoji:'🍔', flags:['drink','sauce'], sauceLabel:'Соус к картофелю фри — выберите один', composition:['Бургер','Фри','Напиток','Соус к фри'] },
+  { id:'doner-combo', categories:['shawarma','chicken'], name:'Донер Комбо', description:'Донер с мясом на выбор, фри, напиток и соус к фри.', price:410, sizes:[{name:'Стандартный',price:410},{name:'Большой',price:490}], saving:80, image:'images/hero-slide-3.png', emoji:'🥙', flags:['meat','drink','sauce'], sauceLabel:'Соус к картофелю фри — выберите один', composition:['Донер','Фри','Напиток','Соус к фри'] },
+  { id:'wings-combo', categories:['chicken'], name:'Крылышки Комбо', description:'Крылышки, напиток и два соуса на выбор.', price:490, sizes:[{name:'6 крыльев',price:490},{name:'9 крыльев',price:620}], saving:110, badge:'ВЫГОДНО', image:'images/hero-slide-1.png', emoji:'🍗', flags:['drink','twoSauces'], composition:['Крылышки','Напиток','2 соуса'] },
+  { id:'gyros-combo', categories:['shawarma','chicken'], name:'Гирос Комбо', description:'Сочный гирос, фри, напиток и соус к фри.', price:420, sizes:[{name:'Стандартный',price:420},{name:'Большой',price:500}], saving:75, image:'images/hero-main.png', emoji:'🥙', flags:['drink','gyrosSauce'], sauceLabel:'Соус к картофелю фри — выберите один', composition:['Гирос','Фри','Напиток','Соус к фри'] },
+  { id:'sandwich-combo', categories:['burgers','chicken'], name:'Сэндвич Комбо', description:'Сэндвич на выбор, напиток и один соус к сэндвичу.', price:400, sizes:[{name:'Стандартный',price:400},{name:'Большой',price:480}], saving:70, image:'images/hero-slide-2.png', emoji:'🥪', flags:['sandwich','drink','sauce'], sauceLabel:'Соус к сэндвичу — выберите один', composition:['Сэндвич','Напиток','Соус'] },
+  { id:'hotdog-combo', categories:['burgers'], name:'Хот-дог Комбо', description:'Хот-дог, напиток и один соус на выбор.', price:330, sizes:[{name:'Стандартный',price:330},{name:'Большой',price:410}], saving:65, image:'images/hero-slide-2.png', emoji:'🌭', flags:['drink','sauce'], sauceLabel:'Соус к хот-догу — выберите один', composition:['Хот-дог','Напиток','Соус'] },
+  { id:'fish-combo', categories:['fish'], name:'Рыбные наггетсы Комбо', description:'Рыбные наггетсы, напиток и подходящий соус.', price:390, sizes:[{name:'6 наггетсов',price:390},{name:'9 наггетсов',price:470}], saving:70, image:'images/hero-slide-1.png', emoji:'🐟', flags:['drink','fishSauce'], sauceLabel:'Соус к рыбным наггетсам — выберите один', composition:['Наггетсы','Напиток','Соус'] },
+  { id:'quesadilla-combo', categories:['shawarma','chicken'], name:'Кесадилья Комбо', description:'Кесадилья, закуска на выбор, напиток и соус.', price:440, sizes:[{name:'Стандартный',price:440},{name:'Большой',price:540}], saving:90, image:'images/hero-slide-3.png', emoji:'🫔', flags:['side','drink','sauce'], composition:['Кесадилья','Закуска','Напиток','Соус'] },
+  { id:'morning-combo', categories:['morning'], name:'Утреннее Комбо', description:'Сырники или вафли, горячий напиток и сок или смузи.', price:320, sizes:[{name:'Стандартный',price:320}], saving:60, badge:'ДО 12:00', image:'images/hero-main.png', emoji:'☕', flags:['morning'], composition:['Завтрак','Кофе или чай','Сок или смузи'] },
+  { id:'sweet-combo', categories:['morning'], name:'Сладкое Комбо', description:'Любимый десерт и свежесваренный кофе или чай.', price:280, sizes:[{name:'Стандартный',price:280}], saving:45, image:'images/hero-slide-2.png', emoji:'🍰', flags:['sweet'], composition:['Десерт','Кофе или чай'] },
+  { id:'mega-combo', categories:['duo','shawarma','chicken'], name:'Мега Комбо на двоих', description:'Две шаурмы, большая порция фри, два напитка и два соуса.', price:890, sizes:[{name:'На двоих',price:890}], saving:170, badge:'НА ДВОИХ', image:'images/hero-slide-1.png', emoji:'🌯', flags:['meat','drink','twoSauces'], composition:['2 шаурмы','Большая фри','2 напитка','2 соуса'] }
 ];
 
 const sets = [
@@ -128,6 +139,7 @@ const builderBase = {
 let cart = JSON.parse(localStorage.getItem('jelani_cart') || '[]');
 let promoCode = localStorage.getItem('jelani_promo') || '';
 let currentCategory = 'all';
+let currentComboCategory = 'all';
 let activeSearchFilter = '';
 let currentBuilderType = 'shawarma';
 let currentCombo = null;
@@ -418,6 +430,25 @@ function renderAccount(){
 function renderCategories(){
   $('#category-tabs').innerHTML = categoryMeta.map(c=>`<button class="category-tab ${currentCategory===c.id?'active':''}" data-category="${c.id}" type="button">${c.label}</button>`).join('');
 }
+function comboCardTemplate(item){
+  const priceLabel = item.sizes?.length > 1 ? `от ${formatPrice(item.price)}` : formatPrice(item.price);
+  return `<article class="combo-card" data-combo="${item.id}">
+    <button class="combo-card__image" type="button" data-combo="${item.id}" aria-label="Выбрать ${item.name}">
+      <img src="${item.image}" alt="${item.name}" loading="lazy">
+      ${item.badge?`<span class="combo-card__badge">${item.badge}</span>`:''}
+      <span class="combo-card__saving">Выгода ${formatPrice(item.saving)}</span>
+    </button>
+    <div class="combo-card__body">
+      <span class="combo-card__size">${item.sizes?.[0]?.name||'Стандартный'}</span>
+      <h3>${item.name}</h3>
+      <p>${item.description}</p>
+      <div class="combo-card__footer">
+        <strong>${priceLabel}</strong>
+        <button class="combo-card__action" type="button" data-combo="${item.id}">Собрать <span>→</span></button>
+      </div>
+    </div>
+  </article>`;
+}
 function cardTemplate(item, type='menu'){
   const action = type==='combo' ? `data-combo="${item.id}"` : type==='set' ? `data-set="${item.id}"` : `data-add="${item.id}"`;
   const label = type==='combo' ? 'Выбрать' : type==='set' ? 'В корзину' : 'В корзину';
@@ -427,7 +458,11 @@ function cardTemplate(item, type='menu'){
     <div class="food-card__body"><h3 class="food-card__title">${item.name}</h3><p class="food-card__desc">${item.description}</p><div class="food-card__footer"><strong class="price">${formatPrice(item.price)}</strong><button class="card-add" type="button" ${action} aria-label="${label}" title="${label}">+</button></div></div>
   </article>`;
 }
-function renderCombos(){ $('#combo-grid').innerHTML = combos.map(item=>cardTemplate(item,'combo')).join(''); }
+function renderCombos(){
+  $('#combo-tabs').innerHTML = comboCategories.map(category=>`<button class="combo-tab ${currentComboCategory===category.id?'active':''}" type="button" role="tab" aria-selected="${currentComboCategory===category.id}" data-combo-category="${category.id}">${category.label}</button>`).join('');
+  const list = combos.filter(item=>currentComboCategory==='all'||item.categories.includes(currentComboCategory));
+  $('#combo-grid').innerHTML = list.map(comboCardTemplate).join('');
+}
 function renderSets(){ $('#sets-grid').innerHTML = sets.map(item=>cardTemplate(item,'set')).join(''); }
 function renderMenu(){
   const list = menuItems.filter(item=>currentCategory==='all'||item.category===currentCategory);
@@ -513,37 +548,53 @@ function choiceControl(group, option, checked, type='radio', price=''){
 function getComboControl(label, options, key, type='radio', required=true){
   const name=`combo-${key}`;
   return `<div class="choice-group"><h3>${label}</h3><div class="option-grid option-grid--2">${options.map((option,index)=>{
+    const value = typeof option === 'string' ? option : option.name;
+    const optionPrice = typeof option === 'string' || option.price == null ? '' : formatPrice(option.price);
     const checked = type === 'checkbox' && key === 'twoSauces'
       ? index < 2
       : required && index === 0;
-    return choiceControl(name, option, checked, type);
+    return choiceControl(name, value, checked, type, optionPrice);
   }).join('')}</div></div>`;
+}
+function selectedComboPrice(){
+  if(!currentCombo) return 0;
+  const selectedSize = valuesByName('combo-size')[0];
+  const size = currentCombo.sizes?.find(option=>option.name===selectedSize);
+  return size?.price ?? currentCombo.price;
+}
+function updateComboPrice(){
+  if(currentCombo) $('#combo-price').textContent=formatPrice(selectedComboPrice());
 }
 function openCombo(id){
   currentCombo=findCombo(id); if(!currentCombo)return;
-  const f=currentCombo.flags||[]; let html=`<p style="margin:0;color:var(--muted);font-size:13px">${currentCombo.description}</p>`;
+  const f=currentCombo.flags||[];
+  $('#combo-modal-hero').innerHTML=`<div class="combo-modal__image"><img src="${currentCombo.image}" alt="${currentCombo.name}"></div><div class="combo-modal__about"><p>${currentCombo.description}</p><div class="combo-composition">${currentCombo.composition.map(item=>`<span>${item}</span>`).join('')}</div><strong>Выгода ${formatPrice(currentCombo.saving)}</strong></div>`;
+  let html=getComboControl('Размер комбо',currentCombo.sizes,'size');
   if(f.includes('мясо')||f.includes('meat')) html+=getComboControl('Выбери мясо',['Курица','Говядина'],'meat');
   if(f.includes('side')) html+=getComboControl('Гарнир',['Картофель фри','Луковые кольца'],'side');
   if(f.includes('sandwich')) html+=getComboControl('Сэндвич',['Сэндвич с курицей','Сэндвич с ветчиной','Жареный сэндвич','Американский сэндвич','Перекрестный с курицей','Перекрестный с ветчиной','Чиабатта-сэндвич'],'sandwich');
   if(f.includes('morning')){html+=getComboControl('Основа',['Сырники','Венские вафли'],'morningBase');html+=getComboControl('Горячий напиток',['Кофе','Чай'],'morningHot');html+=getComboControl('Холодный напиток',['Смузи','Сок'],'morningCold');}
   if(f.includes('sweet')){html+=getComboControl('Десерт',['Пахлава с мороженым','Пончики','Наполеон','Медовик'],'sweetBase');html+=getComboControl('Напиток',['Кофе','Чай'],'sweetDrink');}
+  if(f.includes('shawarmaSauces')) html+=getComboControl('Соусы в шаурму — можно выбрать сколько угодно',sauces,'shawarmaSauces','checkbox',false);
+  if(f.includes('friesSauce')) html+=getComboControl('Соус к картофелю фри — выберите один',sauces,'friesSauce');
   if(f.includes('drink')||f.includes('напиток')) html+=getComboControl('Напиток',drinks,'drink');
-  if(f.includes('gyrosSauce')||f.includes('gyresSauce')) html+=getComboControl('Соус',['Мацони','Чесночный'],'sauce');
-  else if(f.includes('fishSauce')) html+=getComboControl('Соус',['Кисло-сладкий','Чесночный'],'sauce');
-  else if(f.includes('sauce')||f.includes('соус')) html+=getComboControl('Соус',sauces,'sauce');
+  if(f.includes('gyrosSauce')||f.includes('gyresSauce')) html+=getComboControl(currentCombo.sauceLabel||'Соус',['Мацони','Чесночный'],'sauce');
+  else if(f.includes('fishSauce')) html+=getComboControl(currentCombo.sauceLabel||'Соус',['Кисло-сладкий','Чесночный'],'sauce');
+  else if(f.includes('sauce')||f.includes('соус')) html+=getComboControl(currentCombo.sauceLabel||'Соус',sauces,'sauce');
   if(f.includes('twoSauces')) html+=getComboControl('Два соуса',sauces,'twoSauces','checkbox',false);
   $('#combo-title').textContent=currentCombo.name;
   $('#combo-form').innerHTML=html;
-  $('#combo-price').textContent=formatPrice(currentCombo.price);
+  updateComboPrice();
   syncChoiceOptions($('#combo-form'));
   openOverlay('#combo-overlay');
 }
 function valuesByName(name){ return $$(`input[name="${name}"]:checked`).map(el=>el.value); }
 function addCombo(){
   if(!currentCombo)return; const data=[]; const f=currentCombo.flags||[];
-  const possible=['meat','side','sandwich','morningBase','morningHot','morningCold','sweetBase','sweetDrink','drink','sauce','twoSauces'];
-  possible.forEach(key=>{const list=valuesByName(`combo-${key}`);if(list.length)data.push(list.join(', '));});
-  addCart(makeCartItem({id:currentCombo.id,name:currentCombo.name,price:currentCombo.price,emoji:currentCombo.emoji,details:data.join(' · ')})); closeOverlay('#combo-overlay');
+  const detailLabels={size:'Размер',meat:'Мясо',side:'Гарнир',sandwich:'Сэндвич',morningBase:'Основа',morningHot:'Горячий напиток',morningCold:'Холодный напиток',sweetBase:'Десерт',sweetDrink:'Напиток',drink:'Напиток',shawarmaSauces:'Соусы в шаурму',friesSauce:'Соус к фри',sauce:'Соус',twoSauces:'Соусы'};
+  const possible=['size','meat','side','sandwich','morningBase','morningHot','morningCold','sweetBase','sweetDrink','drink','shawarmaSauces','friesSauce','sauce','twoSauces'];
+  possible.forEach(key=>{const list=valuesByName(`combo-${key}`);if(list.length)data.push(`${detailLabels[key]}: ${list.join(', ')}`);});
+  addCart(makeCartItem({id:currentCombo.id,name:currentCombo.name,price:selectedComboPrice(),emoji:currentCombo.emoji,details:data.join(' · ')})); closeOverlay('#combo-overlay');
 }
 
 function initialBuilderState(type){
@@ -947,6 +998,7 @@ function bindEvents(){
     if(target.dataset.openBuilder) openBuilder(target.dataset.openBuilder);
     if(target.dataset.combo) openCombo(target.dataset.combo);
     if(target.dataset.quickCombo) openCombo(target.dataset.quickCombo);
+    if(target.dataset.comboCategory){currentComboCategory=target.dataset.comboCategory;renderCombos();}
     if(target.dataset.category){currentCategory=target.dataset.category;renderCategories();renderMenu();}
     if(target.dataset.add){const item=findMenuItem(target.dataset.add);if(item)addCart(makeCartItem({id:item.id,name:item.name,price:item.price,emoji:item.emoji,details:''}));}
     if(target.dataset.set){const item=findSet(target.dataset.set);if(item)addCart(makeCartItem({id:item.id,name:item.name,price:item.price,emoji:item.emoji,details:item.size}));}
@@ -1010,6 +1062,7 @@ function bindEvents(){
       showToast('В этом комбо можно выбрать только 2 соуса');
     }
     syncChoiceOptions($('#combo-form'));
+    updateComboPrice();
   });
   $$('.overlay').forEach(overlay=>overlay.addEventListener('click',e=>{if(e.target===overlay)closeOverlay('#'+overlay.id)}));
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMobileMenu();$$('.overlay.open').forEach(el=>closeOverlay('#'+el.id));}});

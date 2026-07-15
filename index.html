@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="preload" as="image" href="images/hero-main.png" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260715-2" />
 </head>
 <body>
   <header class="site-header">
@@ -132,15 +132,16 @@
       <button class="secondary-dark-btn" type="button" data-open-cart>Применить код</button>
     </section>
 
-    <section class="popular-section container" id="combos">
-      <div class="section-heading">
+    <section class="popular-section combo-catalog container" id="combos">
+      <div class="section-heading combo-heading">
         <div>
-          <p class="eyebrow">НА ОДНОГО</p>
-          <h2>Комбо, которые не надо объяснять</h2>
+          <p class="eyebrow">КОМБО JELANI</p>
+          <h2>Всё нужное уже вместе</h2>
         </div>
-        <p>В комбо можно выбрать напиток, соус и доступные опции перед добавлением в корзину.</p>
+        <p>Выбери основу, размер, напиток и соус. Итоговая цена видна до добавления в корзину.</p>
       </div>
-      <div class="horizontal-grid" id="combo-grid"></div>
+      <div class="combo-tabs" id="combo-tabs" role="tablist" aria-label="Категории комбо"></div>
+      <div class="combo-grid" id="combo-grid" aria-live="polite"></div>
     </section>
 
     <section class="builder-banner container">
@@ -285,10 +286,11 @@
   </div>
 
   <div class="overlay" id="combo-overlay" aria-hidden="true">
-    <section class="choice-modal" role="dialog" aria-modal="true" aria-labelledby="combo-title">
+    <section class="choice-modal combo-modal" role="dialog" aria-modal="true" aria-labelledby="combo-title">
       <div class="drawer-head"><div><p class="eyebrow">СОБЕРИ КОМБО</p><h2 id="combo-title">Комбо</h2></div><button class="icon-button" id="close-combo" type="button">×</button></div>
+      <div class="combo-modal__hero" id="combo-modal-hero"></div>
       <div id="combo-form"></div>
-      <div class="choice-footer"><div><span>Итого</span><strong id="combo-price">0 ₽</strong></div><button class="primary-btn" id="add-combo-to-cart" type="button">В корзину <span>→</span></button></div>
+      <div class="choice-footer"><div><span>Итого за комбо</span><strong id="combo-price">0 ₽</strong></div><button class="primary-btn" id="add-combo-to-cart" type="button">В корзину <span>→</span></button></div>
     </section>
   </div>
 
@@ -355,6 +357,6 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="script.js"></script>
+  <script src="script.js?v=20260715-2"></script>
 </body>
 </html>
