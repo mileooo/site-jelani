@@ -432,21 +432,16 @@ function renderCategories(){
 }
 function comboCardTemplate(item){
   const priceLabel = item.sizes?.length > 1 ? `от ${formatPrice(item.price)}` : formatPrice(item.price);
-  return `<article class="combo-card" data-combo="${item.id}">
-    <button class="combo-card__image" type="button" data-combo="${item.id}" aria-label="Выбрать ${item.name}">
-      <img src="${item.image}" alt="${item.name}" loading="lazy">
-      ${item.badge?`<span class="combo-card__badge">${item.badge}</span>`:''}
-      <span class="combo-card__saving">Выгода ${formatPrice(item.saving)}</span>
-    </button>
-    <div class="combo-card__body">
-      <span class="combo-card__size">${item.sizes?.[0]?.name||'Стандартный'}</span>
-      <h3>${item.name}</h3>
-      <p>${item.description}</p>
-      <div class="combo-card__footer">
-        <strong>${priceLabel}</strong>
-        <button class="combo-card__action" type="button" data-combo="${item.id}">Собрать <span>→</span></button>
-      </div>
+  const sizeLabel = item.badge || item.sizes?.[0]?.name || 'КОМБО';
+  return `<article class="set-card combo-set-card" data-combo="${item.id}">
+    <span class="set-size">${sizeLabel}</span>
+    <h3>${item.name}</h3>
+    <p>${item.description}</p>
+    <div class="combo-set-meta">
+      <span class="set-price">${priceLabel}</span>
+      <small>Выгода ${formatPrice(item.saving)}</small>
     </div>
+    <button type="button" data-combo="${item.id}" aria-label="Выбрать ${item.name}">+</button>
   </article>`;
 }
 function cardTemplate(item, type='menu'){
