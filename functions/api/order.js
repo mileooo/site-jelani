@@ -266,28 +266,10 @@ function createOrderRecord(order, messages) {
 }
 
 export async function onRequestPost({ request, env }) {
-  try {
-    const order = await request.json();
-    validateOrder(order);
-
-    await ensureTelegramWebhook(request, env);
-
-    const messages = await sendOrderMessages(env, order);
-    const record = createOrderRecord(order, messages);
-    const tracking = await saveOrderStatus(env, record);
-
-    return json({
-      ok: true,
-      messageId: messages[0]?.messageId,
-      messages,
-      recipients: messages.length,
-      tracking,
-      status: statusPayload(record)
-    });
-  } catch (error) {
-    const status = error instanceof SyntaxError ? 400 : error.status || 500;
-    return json({ ok: false, error: error.message }, status);
-  }
+  return json({
+    ok: false,
+    error: 'Онлайн-оплата доступна только через защищённый сервер заказов.'
+  }, 503);
 }
 
 export function onRequest() {

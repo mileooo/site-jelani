@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="preload" as="image" href="images/hero-main.png" />
-  <link rel="stylesheet" href="style.css?v=20260715-3" />
+  <link rel="stylesheet" href="style.css?v=20260718-1" />
 </head>
 <body>
   <header class="site-header">
@@ -31,7 +31,7 @@
     </div>
 
     <div class="header-actions">
-      <button class="header-link" id="favorites-btn" type="button">Любимые</button>
+      <button class="header-link" id="favorites-btn" type="button">Мои заказы</button>
       <button class="header-link" id="order-history-btn" type="button">Личный кабинет</button>
       <button class="cart-button" id="open-cart" type="button" aria-label="Открыть корзину">
         <span>Корзина</span><b id="cart-count">0</b>
@@ -53,7 +53,7 @@
       <a href="#sets">Сеты <span>→</span></a>
       <a href="#menu">Меню <span>→</span></a>
       <a href="#about">О нас <span>→</span></a>
-      <button type="button" data-open-favorites>Мои любимые заказы <span>→</span></button>
+      <button type="button" data-open-favorites>Мои заказы <span>→</span></button>
       <button type="button" data-open-history>Личный кабинет <span>→</span></button>
     </nav>
     <div class="mobile-menu__note">
@@ -101,6 +101,36 @@
       </div>
     </section>
 
+    <section class="quick-order-section container" id="quick-order" aria-live="polite">
+      <div id="quick-order-content"></div>
+    </section>
+
+    <section class="drop-section container" id="drop-section" hidden aria-live="polite">
+      <div class="drop-banner">
+        <div class="drop-banner__media"><img id="drop-image" src="images/hero-slide-3.png" alt="JELANI DROP" /></div>
+        <div class="drop-banner__content">
+          <p class="eyebrow">JELANI DROP</p>
+          <h2 id="drop-name">Новый JELANI DROP уже доступен</h2>
+          <p id="drop-description"></p>
+          <div class="drop-composition" id="drop-composition"></div>
+          <div class="drop-status"><span id="drop-availability"></span><span id="drop-end-date"></span></div>
+          <div class="drop-banner__footer">
+            <div><small>До окончания</small><strong id="drop-countdown">00:00:00</strong></div>
+            <div><small>Цена</small><strong id="drop-price">0 ₽</strong></div>
+            <button class="primary-btn" id="add-drop-btn" type="button">Заказать DROP <span>→</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="taste-section container" id="taste-section" hidden aria-live="polite">
+      <div class="quick-order-heading">
+        <div><p class="eyebrow" id="taste-eyebrow">ТВОЙ ВКУС</p><h2 id="taste-title">Кажется, тебе нравится…</h2></div>
+        <p id="taste-summary"></p>
+      </div>
+      <div class="taste-recommendations" id="taste-recommendations"></div>
+    </section>
+
     <section class="two-feature-block container" aria-label="Главные предложения">
       <article class="feature-card feature-card--combo">
         <div>
@@ -128,7 +158,7 @@
         <p class="eyebrow">ПЕРВЫЙ ЗАКАЗ</p>
         <h2>−10% по коду JELANI10</h2>
       </div>
-      <p>Введи промокод в корзине или при оформлении. Акция работает для первого заказа в этом браузере.</p>
+      <p>Введи промокод в корзине или при оформлении. Акция действует на первый заказ после входа.</p>
       <button class="secondary-dark-btn" type="button" data-open-cart>Применить код</button>
     </section>
 
@@ -203,7 +233,7 @@
           <h2>Быстрая еда<br>с нормальным отношением к вкусу.</h2>
         </div>
         <div class="about-text">
-          <p>Основа — знакомая еда, но без скучной сборки: выбираешь то, что любишь, и убираешь то, что не любишь. Временные цены и составы уже собраны в коде отдельными блоками — потом их легко заменить на реальные.</p>
+          <p>Знакомая еда без скучной сборки: выбирай то, что любишь, и убирай то, что не подходит именно тебе.</p>
         </div>
       </div>
     </section>
@@ -228,7 +258,7 @@
       </div>
       <button class="icon-button" id="tracker-close" type="button" aria-label="Скрыть статус">×</button>
     </div>
-    <strong id="tracker-status">Заказ создан</strong>
+    <strong id="tracker-status">Новый</strong>
     <p id="tracker-detail">Статус обновляется автоматически.</p>
     <ol class="order-steps" id="tracker-steps"></ol>
     <button class="secondary-dark-btn full-btn" id="tracker-received" type="button" hidden>Я получил заказ</button>
@@ -261,8 +291,9 @@
       <div class="cart-summary">
         <div><span>Товары</span><strong id="cart-subtotal">0 ₽</strong></div>
         <div id="cart-discount-row" hidden><span>Скидка</span><strong id="cart-discount">−0 ₽</strong></div>
+        <div id="cart-bonus-row" hidden><span id="cart-bonus-label">Бонус</span><strong id="cart-bonus">−0 ₽</strong></div>
         <div><span>Итого</span><strong id="cart-total">0 ₽</strong></div>
-        <button class="secondary-dark-btn full-btn" id="save-favorite-btn" type="button">Добавить в избранное</button>
+        <button class="secondary-dark-btn full-btn" id="save-favorite-btn" type="button">Сохранить заказ</button>
         <button class="primary-btn full-btn" id="checkout-btn" type="button">Оформить заказ <span>→</span></button>
       </div>
     </aside>
@@ -302,12 +333,22 @@
         <label>Телефон<input required name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 900 000-00-00" pattern="^(\+7|8)\s?9\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}$" title="Введите российский мобильный номер: +7 9XX XXX-XX-XX"></label>
         <label>Способ получения<select required name="delivery" id="delivery-select"><option>Самовывоз</option><option>Доставка</option></select></label>
         <label id="address-field" hidden>Адрес доставки<input name="address" placeholder="Улица, дом, подъезд, квартира"></label>
-        <label>Способ оплаты<select required name="payment"><option>Наличными</option><option>Картой / СБП</option><option>Картой при получении</option></select></label>
+        <fieldset class="payment-methods" id="payment-methods">
+          <legend>Способ оплаты</legend>
+          <label class="payment-method"><input type="radio" name="payment" value="bank_card" disabled><span class="payment-method__icon">К</span><span><strong>Банковская карта</strong><small>МИР и карты российских банков</small></span></label>
+          <label class="payment-method"><input type="radio" name="payment" value="sbp" disabled><span class="payment-method__icon payment-method__icon--sbp">СБП</span><span><strong>СБП</strong><small>Через приложение вашего банка</small></span></label>
+          <label class="payment-method"><input type="radio" name="payment" value="cash" disabled><span class="payment-method__icon payment-method__icon--cash">₽</span><span><strong>Наличными</strong><small>Только при самовывозе</small></span></label>
+        </fieldset>
+        <div class="payment-status" id="payment-status" role="status">
+          <strong id="payment-status-title">Онлайн-оплата настраивается</strong>
+          <span id="payment-status-copy">Заказ нельзя оформить без подтверждённой оплаты.</span>
+        </div>
+        <label id="receipt-email-field" hidden>Email для чека<input name="email" type="email" autocomplete="email" maxlength="160" placeholder="name@example.ru"></label>
         <label>Комментарий<textarea name="comment" placeholder="Пожелания к заказу"></textarea></label>
         <label>Промокод<input name="promo" id="checkout-promo" placeholder="Доступен после входа" autocomplete="off"></label>
         <div class="checkout-total"><span>К оплате</span><strong id="checkout-total">0 ₽</strong></div>
-        <button class="primary-btn full-btn" type="submit">Подтвердить заказ <span>→</span></button>
-        <p class="form-note">Заказ отправится в Telegram, если запущен сервер с токеном бота. Если сервер не подключён, заказ сохранится в этом браузере.</p>
+        <button class="primary-btn full-btn" id="checkout-submit" type="submit" disabled>Перейти к оплате <span>→</span></button>
+        <p class="form-note" id="checkout-note">После подтверждения мы сразу передадим заказ на кухню. Статус появится здесь автоматически.</p>
       </form>
     </section>
   </div>
@@ -316,27 +357,137 @@
     <section class="choice-modal history-modal" role="dialog" aria-modal="true" aria-labelledby="history-title">
       <div class="drawer-head"><div><p class="eyebrow">ЛИЧНЫЙ КАБИНЕТ</p><h2 id="history-title">Мой JELANI</h2></div><button class="icon-button" id="close-history" type="button">×</button></div>
       <div class="account-panel">
-        <form class="account-form" id="account-form">
-          <label>Имя<input id="account-name" autocomplete="name" placeholder="Как к вам обращаться"></label>
-          <label>Телефон<input id="account-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 900 000-00-00"></label>
-          <button class="primary-btn full-btn" type="submit">Сохранить профиль <span>→</span></button>
-          <p class="form-note" id="account-state">Промокоды работают только после сохранения профиля.</p>
-        </form>
-        <div class="account-stats" id="account-stats"></div>
-        <div class="account-active" id="account-active"></div>
+        <section class="auth-view" id="auth-view">
+          <div class="auth-heading"><span id="auth-heading-label">ВХОД В ПРОФИЛЬ</span><h3 id="auth-heading-title">Заказы и бонусы на любом устройстве</h3><p id="auth-heading-copy">Войдите по подтверждённому номеру или через удобный сервис.</p><button class="auth-cancel-link" id="auth-cancel-link" type="button" hidden>Вернуться в профиль</button></div>
+          <form class="phone-auth-form" id="phone-request-form">
+            <label>Имя<input id="auth-name" autocomplete="name" maxlength="80" placeholder="Как к вам обращаться"></label>
+            <label>Телефон<input id="auth-phone" required type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 900 000-00-00"></label>
+            <button class="primary-btn full-btn" type="submit">Получить код <span>→</span></button>
+          </form>
+          <form class="phone-auth-form phone-code-form" id="phone-verify-form" hidden>
+            <div class="phone-code-copy"><strong id="phone-code-title">Код отправлен</strong><span>Введите шесть цифр из SMS</span></div>
+            <label>Код из SMS<input id="auth-code" required inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" placeholder="000000"></label>
+            <button class="primary-btn full-btn" type="submit">Войти <span>→</span></button>
+            <button class="auth-back-button" id="auth-change-phone" type="button">Изменить номер</button>
+          </form>
+          <div class="auth-divider"><span>или</span></div>
+          <div class="auth-providers" aria-label="Другие способы входа">
+            <div class="auth-provider-slot" id="telegram-login-slot"><button type="button" disabled><b>TG</b><span>Telegram</span></button></div>
+            <button type="button" data-auth-provider="vk" disabled><b>VK</b><span>VK</span></button>
+            <button type="button" data-auth-provider="ok" disabled><b>OK</b><span>Одноклассники</span></button>
+            <button type="button" data-auth-provider="mail" disabled><b>@</b><span>Mail.ru</span></button>
+            <button type="button" data-auth-provider="max" disabled><b>M</b><span>MAX</span></button>
+          </div>
+          <p class="auth-message" id="auth-message" role="status"></p>
+        </section>
+        <section class="account-profile-view" id="account-profile-view" hidden>
+          <div class="account-user-head"><div class="account-avatar" id="account-avatar">J</div><div><span>ТВОЙ ПРОФИЛЬ</span><h3 id="account-display-name">Гость JELANI</h3><p id="account-display-phone"></p></div></div>
+          <form class="account-form" id="account-form">
+            <label>Имя<input id="account-name" autocomplete="name" maxlength="80" placeholder="Как к вам обращаться"></label>
+            <label>Подтверждённый телефон<input id="account-phone" type="tel" readonly></label>
+            <div class="account-address-head"><span>Адреса доставки</span><button type="button" id="add-account-address">+ Добавить</button></div>
+            <div class="account-addresses" id="account-addresses"></div>
+            <button class="primary-btn full-btn" type="submit">Сохранить изменения <span>→</span></button>
+            <p class="form-note" id="account-state">Профиль синхронизирован.</p>
+          </form>
+          <div class="account-methods"><div><span>Способы входа</span><div id="account-method-list"></div></div><button class="secondary-dark-btn" id="link-login-method" type="button">Добавить способ</button></div>
+          <div class="account-session-actions"><button type="button" id="account-logout">Выйти</button><button type="button" id="account-delete">Удалить профиль</button></div>
+          <div class="account-stats" id="account-stats"></div>
+          <div class="account-active" id="account-active"></div>
+          <div class="account-benefit" id="account-bonus" hidden></div>
+        </section>
       </div>
-      <div class="account-section-head">
-        <h3>История заказов</h3>
-        <button class="secondary-dark-btn" type="button" data-open-favorites>Избранное</button>
+      <div id="account-private-content" hidden>
+        <div class="taste-profile-card" id="taste-profile-card" hidden></div>
+        <div class="account-section-head">
+          <h3>История заказов</h3>
+          <button class="secondary-dark-btn" type="button" data-open-favorites>Мои заказы</button>
+        </div>
+        <div id="history-list" class="history-list"></div>
       </div>
-      <div id="history-list" class="history-list"></div>
     </section>
   </div>
 
   <div class="overlay" id="favorites-overlay" aria-hidden="true">
     <section class="choice-modal history-modal" role="dialog" aria-modal="true" aria-labelledby="favorites-title">
-      <div class="drawer-head"><div><p class="eyebrow">ЛЮБИМЫЕ ЗАКАЗЫ</p><h2 id="favorites-title">Избранное</h2></div><button class="icon-button" id="close-favorites" type="button">×</button></div>
+      <div class="drawer-head"><div><p class="eyebrow">СОХРАНЁННЫЕ СБОРКИ</p><h2 id="favorites-title">Мои заказы</h2></div><button class="icon-button" id="close-favorites" type="button">×</button></div>
       <div id="favorites-list" class="history-list"></div>
+    </section>
+  </div>
+
+  <div class="overlay" id="payment-overlay" aria-hidden="true">
+    <section class="choice-modal payment-result-modal" role="dialog" aria-modal="true" aria-labelledby="payment-result-title">
+      <div class="drawer-head"><div><p class="eyebrow">ОПЛАТА ЗАКАЗА</p><h2 id="payment-result-title">Проверяем оплату</h2></div><button class="icon-button" id="close-payment-result" type="button">×</button></div>
+      <div class="payment-result-mark" id="payment-result-mark" aria-hidden="true">•••</div>
+      <p id="payment-result-copy">Получаем актуальный статус у платёжного сервиса.</p>
+      <div class="payment-result-actions">
+        <button class="primary-btn" id="payment-check" type="button">Проверить ещё раз <span>→</span></button>
+        <button class="secondary-dark-btn" id="payment-retry" type="button" hidden>Вернуться к оформлению</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="overlay" id="save-order-overlay" aria-hidden="true">
+    <section class="choice-modal save-order-modal" role="dialog" aria-modal="true" aria-labelledby="save-order-title">
+      <div class="drawer-head"><div><p class="eyebrow">МОИ ЗАКАЗЫ</p><h2 id="save-order-title">Как назвать заказ?</h2></div><button class="icon-button" id="close-save-order" type="button">×</button></div>
+      <p class="save-order-copy">Сохрани сборку, чтобы в следующий раз повторить её одним нажатием.</p>
+      <div class="saved-name-options" aria-label="Предложенные названия">
+        <button type="button" data-saved-name="Мой обычный заказ">Мой обычный заказ</button>
+        <button type="button" data-saved-name="После тренировки">После тренировки</button>
+        <button type="button" data-saved-name="Максимально острое">Максимально острое</button>
+        <button type="button" data-saved-name="На двоих">На двоих</button>
+        <button type="button" data-saved-name="Как всегда">Как всегда</button>
+      </div>
+      <form id="save-order-form" class="save-order-form">
+        <label>Название<input id="save-order-name" maxlength="60" required placeholder="Например, обед в пятницу" autocomplete="off"></label>
+        <button class="primary-btn full-btn" type="submit">Сохранить <span>→</span></button>
+      </form>
+    </section>
+  </div>
+
+  <div class="overlay" id="availability-overlay" aria-hidden="true">
+    <section class="choice-modal availability-modal" role="dialog" aria-modal="true" aria-labelledby="availability-title">
+      <div class="drawer-head"><div><p class="eyebrow">ПРОВЕРКА МЕНЮ</p><h2 id="availability-title">Нужно заменить позицию</h2></div><button class="icon-button" id="close-availability" type="button">×</button></div>
+      <p>Некоторые позиции или выбранные варианты сейчас недоступны:</p>
+      <div id="availability-list" class="availability-list"></div>
+      <div class="availability-actions">
+        <button class="secondary-dark-btn" id="repeat-available-btn" type="button">Продолжить без них</button>
+        <button class="primary-btn" id="find-replacement-btn" type="button">Подобрать замену <span>→</span></button>
+      </div>
+    </section>
+  </div>
+
+  <div class="overlay" id="bonus-overlay" aria-hidden="true">
+    <section class="choice-modal bonus-modal" role="dialog" aria-modal="true" aria-labelledby="bonus-title">
+      <div class="drawer-head"><div><p class="eyebrow">БОНУС НА СЛЕДУЮЩИЙ ЗАКАЗ</p><h2 id="bonus-title">Твой бонус открылся</h2></div><button class="icon-button" id="close-bonus" type="button">×</button></div>
+      <div class="bonus-reveal-icon" aria-hidden="true">J</div>
+      <h3 id="bonus-name"></h3>
+      <p id="bonus-description"></p>
+      <div class="bonus-conditions"><span id="bonus-conditions"></span><strong id="bonus-expiry"></strong></div>
+      <button class="primary-btn full-btn" id="bonus-continue" type="button">Понятно <span>→</span></button>
+    </section>
+  </div>
+
+  <div class="overlay" id="taste-profile-overlay" aria-hidden="true">
+    <section class="choice-modal taste-profile-modal" role="dialog" aria-modal="true" aria-labelledby="taste-profile-title">
+      <div class="drawer-head"><div><p class="eyebrow">НАСТРОЙКИ ВКУСА</p><h2 id="taste-profile-title">Мой вкусовой профиль</h2></div><button class="icon-button" id="close-taste-profile" type="button">×</button></div>
+      <form id="taste-profile-form" class="taste-profile-form">
+        <fieldset><legend>Что тебе ближе</legend><div class="taste-traits-grid">
+          <label><input type="checkbox" name="taste-trait" value="more_meat"><span>Больше мяса</span></label>
+          <label><input type="checkbox" name="taste-trait" value="balanced"><span>Сбалансированный состав</span></label>
+          <label><input type="checkbox" name="taste-trait" value="more_vegetables"><span>Больше овощей</span></label>
+          <label><input type="checkbox" name="taste-trait" value="more_sauce"><span>Больше соуса</span></label>
+          <label><input type="checkbox" name="taste-trait" value="spicy"><span>Острое</span></label>
+          <label><input type="checkbox" name="taste-trait" value="mild"><span>Неострое</span></label>
+          <label><input type="checkbox" name="taste-trait" value="no_onion"><span>Без лука</span></label>
+          <label><input type="checkbox" name="taste-trait" value="cheese"><span>С сыром</span></label>
+        </div></fieldset>
+        <div class="taste-selects">
+          <label>Любимое мясо<select name="taste-protein"><option value="">По истории заказов</option><option>Курица</option><option>Говядина</option></select></label>
+          <label>Предпочитаемый размер<select name="taste-size"><option value="">По истории заказов</option><option>Маленькая</option><option>Стандартная</option><option>Большая</option></select></label>
+        </div>
+        <div class="taste-profile-actions"><button class="secondary-dark-btn" id="reset-taste-profile" type="button">Сбросить профиль</button><button class="primary-btn" type="submit">Сохранить <span>→</span></button></div>
+      </form>
     </section>
   </div>
 
@@ -357,6 +508,6 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="script.js?v=20260715-3"></script>
+  <script src="script.js?v=20260718-1"></script>
 </body>
 </html>

@@ -200,10 +200,16 @@ function serveStatic(req, res) {
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'POST' && req.url === '/api/order') {
-      const order = await readJson(req);
-      validateOrder(order);
-      await sendOrder(order);
-      return sendJson(res, 200, { ok: true });
+      return sendJson(res, 503, { ok: false, error: 'Онлайн-оплата доступна только через защищённый сервер заказов.' });
+    }
+    if (req.method === 'GET' && req.url === '/api/payment/config') {
+      return sendJson(res, 200, {
+        ok: true,
+        provider: 'yookassa',
+        available: false,
+        methods: { bankCard: false, sbp: false },
+        receiptEmailRequired: false
+      });
     }
     if (req.method === 'POST' && req.url === '/api/telegram-webhook') {
       return handleTelegramWebhook(req, res);

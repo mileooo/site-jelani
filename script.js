@@ -1,9 +1,3 @@
-/* ================================================================
-   JELANI — временное меню и логика заказа.
-   Все цены, составы и опции лежат в верхней части файла.
-   Потом меняем только данные, не трогая интерфейс.
-================================================================ */
-
 const RUB = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 });
 const formatPrice = value => RUB.format(value);
 
@@ -145,25 +139,56 @@ let currentBuilderType = 'shawarma';
 let currentCombo = null;
 let builderState = null;
 let orderStatusTimer = null;
+let checkoutSubmitting = false;
+let pendingCheckoutOrder = null;
+let editingComboCartId = null;
+let editingBuilderCartId = null;
+let pendingSavedOrder = null;
+let pendingRepeatItems = [];
+let dropCountdownTimer = null;
+let pendingPostOrderSave = null;
+let engagementState = { bonuses:[], drop:null, taste:null, points:0 };
+let authState = { authenticated:false, profile:null, config:null, linking:false };
+let pendingAuthPhone = '';
+let paymentConfig = { available:false,methods:{bankCard:false,sbp:false,cash:false},receiptEmailRequired:false };
+let pendingPaidFollowup = null;
 
 const PROFILE_KEY = 'jelani_profile';
 const ACTIVE_ORDERS_KEY = 'jelani_active_orders';
+const SAVED_ORDERS_KEY = 'jelani_saved_orders';
+const DEVICE_TOKEN_KEY = 'jelani_device_token';
+const LOCAL_TASTE_KEY = 'jelani_taste_overrides';
+const LOCAL_BONUSES_KEY = 'jelani_active_bonuses';
+const PENDING_PAYMENT_KEY = 'jelani_pending_payment';
 const TRACKER_HIDE_DELAY = 14000;
+const FALLBACK_DROP = {
+  id:'drop-2026-07-fire',
+  name:'Огненная шаурма DROP',
+  description:'Курица, халапеньо, сыр и яркий соус Чили. Только на этой неделе.',
+  composition:['Курица','Сыр','Халапеньо','Соус Чили','Свежие овощи'],
+  imageUrl:'images/hero-slide-3.png',
+  price:349,
+  startsAt:'2026-07-12T06:00:00.000Z',
+  endsAt:'2026-07-19T17:45:00.000Z',
+  quantity:80,
+  soldCount:18,
+  remaining:62,
+  available:true
+};
 const STATUS_STEPS = {
   pickup: [
-    { label: 'Заказ создан', detail: 'Заказ ушел на кухню.' },
+    { label: 'Новый', detail: 'Заказ передан на кухню.' },
     { label: 'Принят', detail: 'Команда JELANI подтвердила заказ.' },
-    { label: 'Готовим', detail: 'Заказ сейчас готовится.' },
-    { label: 'Готов к самовывозу', detail: 'Заказ можно забирать.' },
-    { label: 'Получен', detail: 'Заказ выдан клиенту.', terminal: true }
+    { label: 'Готовится', detail: 'Заказ сейчас готовится.' },
+    { label: 'Готов', detail: 'Заказ можно забирать.' },
+    { label: 'Выдан', detail: 'Заказ выдан клиенту.', terminal: true }
   ],
   delivery: [
-    { label: 'Заказ создан', detail: 'Заказ ушел на кухню.' },
+    { label: 'Новый', detail: 'Заказ передан на кухню.' },
     { label: 'Принят', detail: 'Команда JELANI подтвердила заказ.' },
-    { label: 'Готовим', detail: 'Заказ сейчас готовится.' },
-    { label: 'Передан курьеру', detail: 'Заказ передан в доставку.' },
-    { label: 'В пути', detail: 'Курьер едет к клиенту.' },
-    { label: 'Получен', detail: 'Заказ доставлен клиенту.', terminal: true }
+    { label: 'Готовится', detail: 'Заказ сейчас готовится.' },
+    { label: 'Готов', detail: 'Заказ ожидает передачи курьеру.' },
+    { label: 'Передан курьеру', detail: 'Заказ передан в доставку.', terminal: true }
   ]
 };
 
@@ -174,12 +199,12 @@ function safeJson(key, fallback){
   try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
   catch { return fallback; }
 }
-function saveCart(){ localStorage.setItem('jelani_cart', JSON.stringify(cart)); }
+function saveCart(){ localStorage.setItem('jelani_cart', JSON.stringify(cart)); pendingCheckoutOrder = null; }
 function cartSubtotal(){ return cart.reduce((sum,item)=>sum + item.price * item.qty,0); }
 function normalizedPromo(){ return promoCode.trim().toUpperCase(); }
 function firstOrderPromoAvailable(){ return !localStorage.getItem('jelani_first_order_used') && safeJson('jelani_orders', []).length === 0; }
 function promoDiscount(){ return isAuthorized() && normalizedPromo() === 'JELANI10' && firstOrderPromoAvailable() ? Math.round(cartSubtotal() * 0.1) : 0; }
-function cartTotal(){ return Math.max(0, cartSubtotal() - promoDiscount()); }
+function cartTotal(){ return Math.max(0, cartSubtotal() - promoDiscount() - activeBonusDiscount()); }
 function esc(value){ return String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char])); }
 function showToast(text){ const el=$('#toast'); el.textContent=text; el.classList.add('show'); clearTimeout(showToast.timeout); showToast.timeout=setTimeout(()=>el.classList.remove('show'),2200); }
 function syncPageScroll(){
@@ -216,13 +241,13 @@ function toggleMobileMenu(){ $('#mobile-menu')?.classList.contains('is-open') ? 
 function visualClass(visual){ return `visual-${visual || 'orange'}`; }
 
 function getProfile(){
+  if(authState.authenticated && authState.profile) return authState.profile;
   const profile = safeJson(PROFILE_KEY, null);
   return profile && typeof profile === 'object' ? profile : null;
 }
 
 function isAuthorized(){
-  const profile = getProfile();
-  return Boolean(profile?.name && isRussianMobilePhone(profile.phone));
+  return Boolean(authState.authenticated && authState.profile?.id);
 }
 
 function profilePayload(){
@@ -245,6 +270,623 @@ function saveProfile(profile){
     phone: formatRussianPhone(phone),
     updatedAt: new Date().toISOString()
   }));
+}
+
+function savedOrders(){
+  const current = safeJson(SAVED_ORDERS_KEY, null);
+  if(Array.isArray(current)) return current;
+
+  const legacy = safeJson('jelani_favorites', []);
+  const migrated = legacy.map((order, index)=>({
+    ...order,
+    name: order.name || `Любимый заказ ${index + 1}`,
+    createdAt: order.createdAt || new Date().toISOString()
+  }));
+  localStorage.setItem(SAVED_ORDERS_KEY, JSON.stringify(migrated));
+  return migrated;
+}
+
+function storeSavedOrders(orders){
+  localStorage.setItem(SAVED_ORDERS_KEY, JSON.stringify(orders.slice(0,30)));
+}
+
+function deviceToken(){
+  let token = localStorage.getItem(DEVICE_TOKEN_KEY) || '';
+  if(/^[a-f0-9]{64}$/i.test(token)) return token;
+  const bytes = new Uint8Array(32);
+  window.crypto.getRandomValues(bytes);
+  token = [...bytes].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+  localStorage.setItem(DEVICE_TOKEN_KEY,token);
+  return token;
+}
+
+function apiHeaders(jsonBody=false){
+  return {
+    'X-Device-Token':deviceToken(),
+    ...(jsonBody?{'Content-Type':'application/json'}:{})
+  };
+}
+
+async function apiRequest(path,{method='GET',body=null}={}){
+  const response=await fetch(path,{
+    method,
+    credentials:'same-origin',
+    headers:apiHeaders(body!==null),
+    ...(body!==null?{body:JSON.stringify(body)}:{})
+  });
+  const data=await response.json().catch(()=>({ok:false}));
+  if(!response.ok||data.ok===false)throw new Error(data.error||'Не удалось выполнить запрос.');
+  return data;
+}
+
+function setAuthMessage(message='',error=false){
+  const element=$('#auth-message');
+  if(!element)return;
+  element.textContent=message;
+  element.classList.toggle('is-error',Boolean(error));
+}
+
+function authMethodLabel(provider){
+  return {phone:'Телефон',telegram:'Telegram',vk:'VK',ok:'Одноклассники',mail:'Mail.ru',max:'MAX'}[provider]||provider;
+}
+
+function renderTelegramLogin(){
+  const slot=$('#telegram-login-slot');
+  if(!slot)return;
+  const telegram=authState.config?.providers?.telegram;
+  if(!telegram?.available||!telegram.botUsername){
+    slot.dataset.ready='';
+    slot.innerHTML='<button type="button" disabled title="Способ входа пока настраивается"><b>TG</b><span>Telegram</span></button>';
+    return;
+  }
+  if(slot.dataset.ready===telegram.botUsername)return;
+  slot.innerHTML='';
+  const script=document.createElement('script');
+  script.src='https://telegram.org/js/telegram-widget.js?22';
+  script.async=true;
+  script.setAttribute('data-telegram-login',telegram.botUsername);
+  script.setAttribute('data-size','large');
+  script.setAttribute('data-radius','8');
+  script.setAttribute('data-userpic','false');
+  script.setAttribute('data-request-access','write');
+  script.setAttribute('data-onauth','onTelegramAuth(user)');
+  slot.dataset.ready=telegram.botUsername;
+  slot.append(script);
+}
+
+function renderAuthProviders(){
+  const config=authState.config?.providers||{};
+  const phoneButton=$('#phone-request-form button[type="submit"]');
+  if(phoneButton){
+    phoneButton.disabled=!config.phone?.available;
+    phoneButton.title=config.phone?.available?'':'Вход по SMS пока настраивается';
+  }
+  $$('[data-auth-provider]').forEach(button=>{
+    const available=Boolean(config[button.dataset.authProvider]?.available);
+    button.disabled=!available;
+    button.title=available?'':`${authMethodLabel(button.dataset.authProvider)} пока настраивается`;
+  });
+  renderTelegramLogin();
+  if(!Object.values(config).some(provider=>provider?.available))setAuthMessage('Способы входа появятся после настройки ключей на сервере.');
+}
+
+function mergeServerOrders(orders){
+  if(!Array.isArray(orders))return;
+  const local=safeJson('jelani_orders',[]);
+  const merged=new Map(local.map(order=>[order.id,order]));
+  orders.forEach(order=>merged.set(order.id,order));
+  localStorage.setItem('jelani_orders',JSON.stringify([...merged.values()].sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')))));
+}
+
+function applyAuthPayload(data){
+  authState.authenticated=Boolean(data?.authenticated!==false&&data?.profile?.id);
+  authState.profile=authState.authenticated?data.profile:null;
+  authState.linking=false;
+  if(authState.profile){
+    localStorage.setItem(PROFILE_KEY,JSON.stringify(authState.profile));
+    mergeServerOrders(data.orders);
+  }
+  renderAccount();
+  syncPromoInputs();
+  renderCart();
+}
+
+async function hydrateAuth(){
+  const [config,session]=await Promise.all([
+    apiRequest('/api/auth/config').catch(()=>null),
+    apiRequest('/api/auth/session').catch(()=>null)
+  ]);
+  authState.config=config||{providers:{phone:{available:false},telegram:{available:false},vk:{available:false},ok:{available:false},mail:{available:false},max:{available:false}}};
+  if(session?.authenticated)applyAuthPayload(session);
+  else {
+    if(session?.authenticated===false)resetPrivateLocalData();
+    authState.authenticated=false;
+    authState.profile=null;
+    renderAccount();
+  }
+  renderAuthProviders();
+  const params=new URLSearchParams(location.search);
+  const authResult=params.get('auth');
+  if(authResult){
+    if(authResult==='success')showToast('Вход выполнен');
+    else showToast('Не удалось выполнить вход');
+    history.replaceState({},'',`${location.pathname}${location.hash||''}`);
+    openHistory();
+  }
+}
+
+async function requestPhoneCode(event){
+  event.preventDefault();
+  const phoneInput=$('#auth-phone');
+  const phone=formatRussianPhone(phoneInput.value);
+  if(!isRussianMobilePhone(phone)){showToast('Введите российский мобильный номер');return;}
+  const submit=event.currentTarget.querySelector('button[type="submit"]');
+  submit.disabled=true;
+  try{
+    const data=await apiRequest('/api/auth/phone/request',{method:'POST',body:{phone,name:$('#auth-name').value}});
+    pendingAuthPhone=phone;
+    $('#phone-code-title').textContent=`Код отправлен на ${phone}`;
+    $('#phone-request-form').hidden=true;
+    $('#phone-verify-form').hidden=false;
+    $('#auth-code').value=data.debugCode||'';
+    $('#auth-code').focus();
+    setAuthMessage(data.debugCode?`Код для локальной проверки: ${data.debugCode}`:'Код действует 5 минут.');
+  }catch(error){setAuthMessage(error.message,true);showToast(error.message);}
+  finally{submit.disabled=!authState.config?.providers?.phone?.available;}
+}
+
+async function verifyPhoneCode(event){
+  event.preventDefault();
+  const code=String($('#auth-code').value||'').replace(/\D/g,'');
+  if(!/^\d{6}$/.test(code)){showToast('Введите шесть цифр из SMS');return;}
+  const submit=event.currentTarget.querySelector('button[type="submit"]');
+  submit.disabled=true;
+  try{
+    const data=await apiRequest('/api/auth/phone/verify',{method:'POST',body:{phone:pendingAuthPhone,code,name:$('#auth-name').value}});
+    applyAuthPayload({...data,authenticated:true});
+    await Promise.all([hydrateSavedOrders(),hydrateEngagement()]);
+    showToast('Номер подтверждён');
+  }catch(error){setAuthMessage(error.message,true);showToast(error.message);}
+  finally{submit.disabled=false;}
+}
+
+function changeAuthPhone(){
+  pendingAuthPhone='';
+  $('#phone-request-form').hidden=false;
+  $('#phone-verify-form').hidden=true;
+  $('#auth-code').value='';
+  setAuthMessage('');
+}
+
+window.onTelegramAuth=async user=>{
+  const linking=authState.linking;
+  try{
+    const data=await apiRequest('/api/auth/telegram',{method:'POST',body:user});
+    applyAuthPayload({...data,authenticated:true});
+    await Promise.all([hydrateSavedOrders(),hydrateEngagement()]);
+    showToast(linking?'Telegram добавлен':'Вход через Telegram выполнен');
+  }catch(error){setAuthMessage(error.message,true);showToast(error.message);}
+};
+
+async function startOAuth(provider){
+  try{
+    const mode=authState.authenticated?'link':'login';
+    const data=await apiRequest(`/api/auth/oauth/start?provider=${encodeURIComponent(provider)}&mode=${mode}`);
+    location.assign(data.url);
+  }catch(error){setAuthMessage(error.message,true);showToast(error.message);}
+}
+
+let maxBridgePromise;
+function maxInitData(){
+  if(typeof window.WebApp?.initData==='string'&&window.WebApp.initData)return window.WebApp.initData;
+  try{return new URLSearchParams(location.hash.slice(1)).get('WebAppData')||'';}catch{return '';}
+}
+function loadMaxBridge(){
+  if(window.WebApp)return Promise.resolve(window.WebApp);
+  if(maxBridgePromise)return maxBridgePromise;
+  maxBridgePromise=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src='https://st.max.ru/js/max-web-app.js';
+    script.async=true;
+    script.onload=()=>resolve(window.WebApp||null);
+    script.onerror=()=>reject(new Error('Не удалось открыть вход через MAX.'));
+    document.head.append(script);
+  });
+  return maxBridgePromise;
+}
+async function startMaxAuth(){
+  const config=authState.config?.providers?.max||{};
+  try{
+    await loadMaxBridge().catch(()=>null);
+    const initData=maxInitData();
+    if(initData){
+      const linking=authState.authenticated;
+      const data=await apiRequest('/api/auth/max',{method:'POST',body:{initData}});
+      applyAuthPayload({...data,authenticated:true});
+      await Promise.all([hydrateSavedOrders(),hydrateEngagement()]);
+      showToast(linking?'MAX добавлен':'Вход через MAX выполнен');
+      return;
+    }
+    if(config.launchUrl){
+      const launchUrl=new URL(config.launchUrl,location.origin);
+      if(!['https:','http:'].includes(launchUrl.protocol))throw new Error('Ссылка MAX настроена неверно.');
+      location.assign(launchUrl.toString());
+      return;
+    }
+    throw new Error('Вход через MAX доступен при открытии сайта из мини-приложения MAX.');
+  }catch(error){setAuthMessage(error.message,true);showToast(error.message);}
+}
+function startAuthProvider(provider){
+  if(provider==='max'&&authState.config?.providers?.max?.mode==='miniapp')return startMaxAuth();
+  return startOAuth(provider);
+}
+
+function resetPrivateLocalData(){
+  localStorage.removeItem(PROFILE_KEY);
+  localStorage.removeItem('jelani_orders');
+  localStorage.removeItem(SAVED_ORDERS_KEY);
+  localStorage.removeItem(LOCAL_TASTE_KEY);
+  localStorage.removeItem(LOCAL_BONUSES_KEY);
+  engagementState.bonuses=[];
+  engagementState.taste=null;
+}
+
+async function logoutAccount(){
+  try{await apiRequest('/api/auth/session',{method:'DELETE'});}catch{}
+  resetPrivateLocalData();
+  authState={...authState,authenticated:false,profile:null,linking:false};
+  renderAccount();
+  renderCart();
+  showToast('Вы вышли из профиля');
+}
+
+async function deleteAccount(){
+  const confirmation=window.prompt('Чтобы удалить профиль, напишите УДАЛИТЬ');
+  if(String(confirmation||'').toUpperCase()!=='УДАЛИТЬ')return;
+  try{
+    await apiRequest('/api/account',{method:'DELETE',body:{confirmation}});
+    resetPrivateLocalData();
+    authState={...authState,authenticated:false,profile:null,linking:false};
+    renderAccount();
+    renderCart();
+    showToast('Профиль удалён');
+  }catch(error){showToast(error.message);}
+}
+
+function accountAddressRow(address={},index=0){
+  return `<div class="account-address-row" data-account-address-row>
+    <input data-address-label maxlength="40" aria-label="Название адреса" placeholder="Дом" value="${esc(address.label||`Адрес ${index+1}`)}">
+    <input data-address-value maxlength="240" aria-label="Адрес доставки" placeholder="Улица, дом, квартира" value="${esc(address.address||'')}">
+    <button type="button" data-remove-account-address="${index}" aria-label="Удалить адрес">×</button>
+  </div>`;
+}
+
+function accountAddressesFromForm(){
+  return $$('[data-account-address-row]').map((row,index)=>({
+    id:authState.profile?.addresses?.[index]?.id||'',
+    label:row.querySelector('[data-address-label]').value.trim(),
+    address:row.querySelector('[data-address-value]').value.trim(),
+    isDefault:index===0
+  })).filter(item=>item.address);
+}
+
+function renderAccountAddresses(addresses=authState.profile?.addresses||[]){
+  const root=$('#account-addresses');
+  if(!root||root.contains(document.activeElement))return;
+  root.innerHTML=(addresses.length?addresses:[{}]).map(accountAddressRow).join('');
+}
+
+function addAccountAddress(){
+  const addresses=accountAddressesFromForm();
+  if(addresses.length>=5){showToast('Можно сохранить до 5 адресов');return;}
+  authState.profile={...authState.profile,addresses:[...addresses,{}]};
+  renderAccountAddresses(authState.profile.addresses);
+}
+
+function removeAccountAddress(index){
+  const addresses=accountAddressesFromForm();
+  addresses.splice(Number(index),1);
+  authState.profile={...authState.profile,addresses};
+  renderAccountAddresses(addresses);
+}
+
+async function saveAccountProfile(event){
+  event.preventDefault();
+  if(!isAuthorized())return;
+  try{
+    const data=await apiRequest('/api/account',{method:'PATCH',body:{name:$('#account-name').value,addresses:accountAddressesFromForm()}});
+    authState.profile=data.profile;
+    localStorage.setItem(PROFILE_KEY,JSON.stringify(data.profile));
+    renderAccount();
+    showToast('Профиль обновлён');
+  }catch(error){showToast(error.message);}
+}
+
+function openLinkMethods(){
+  authState.linking=true;
+  changeAuthPhone();
+  renderAccount();
+  renderAuthProviders();
+}
+
+function cancelLinkMethods(){
+  authState.linking=false;
+  renderAccount();
+}
+
+async function savedOrdersRequest(method, path='', body=null){
+  try {
+    const response = await fetch(`/api/saved-orders${path}`, {
+      method,
+      credentials:'same-origin',
+      headers:apiHeaders(Boolean(body)),
+      ...(body ? { body:JSON.stringify(body) } : {})
+    });
+    if(!response.ok) return null;
+    return await response.json();
+  } catch { return null; }
+}
+
+async function syncSavedOrder(order){
+  return savedOrdersRequest('POST','',{
+    id:order.id,
+    name:order.name,
+    items:order.items,
+    createdAt:order.createdAt
+  });
+}
+
+async function hydrateSavedOrders(){
+  const data = await savedOrdersRequest('GET');
+  if(!data?.ok || !Array.isArray(data.orders)) return;
+  const local = savedOrders();
+  const remoteIds = new Set(data.orders.map(order=>order.id));
+  const merged = new Map(local.map(order=>[order.id,order]));
+  data.orders.forEach(order=>merged.set(order.id,order));
+  storeSavedOrders([...merged.values()].sort((a,b)=>String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || ''))));
+  renderAccount();
+  await Promise.all(local.filter(order=>!remoteIds.has(order.id)).map(syncSavedOrder));
+}
+
+async function engagementRequest(path,method='GET',body=null){
+  try {
+    const response=await fetch(path,{
+      method,
+      credentials:'same-origin',
+      headers:apiHeaders(Boolean(body)),
+      ...(body ? {body:JSON.stringify(body)} : {})
+    });
+    if(!response.ok) return null;
+    return await response.json();
+  } catch { return null; }
+}
+
+function addLocalCount(map,value,amount=1){
+  if(!value) return;
+  map.set(String(value),(map.get(String(value))||0)+amount);
+}
+function topLocalCounts(map,limit=3){
+  return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,limit).map(([value])=>value);
+}
+function buildLocalTasteProfile(){
+  const orders=safeJson('jelani_orders',[]).filter(order=>!order.canceled);
+  const proteins=new Map(),saucesCount=new Map(),extrasCount=new Map(),sizes=new Map(),sides=new Map(),drinksCount=new Map(),traits=new Map();
+  let customizable=0,noOnion=0;
+  orders.flatMap(order=>order.items||[]).forEach(item=>{
+    const qty=Math.max(1,Number(item.qty||1));
+    const id=String(item.id||'').toLowerCase();
+    const name=String(item.name||'').toLowerCase();
+    const options=item.options||{};
+    const meat=Array.isArray(options.meat)?options.meat[0]:options.meat;
+    if(meat)addLocalCount(proteins,meat,qty);
+    else if(id.includes('chicken')||name.includes('куриц'))addLocalCount(proteins,'Курица',qty);
+    else if(id.includes('beef')||name.includes('говядин'))addLocalCount(proteins,'Говядина',qty);
+    const itemSauces=['sauces','shawarmaSauces','friesSauce','sauce','twoSauces'].flatMap(key=>optionList(options[key]));
+    itemSauces.forEach(value=>addLocalCount(saucesCount,value,qty));
+    optionList(options.extras).forEach(value=>addLocalCount(extrasCount,value,qty));
+    if(options.size)addLocalCount(sizes,options.size,qty);
+    if(options.drink)addLocalCount(drinksCount,options.drink,qty);
+    if(id.includes('fries'))addLocalCount(sides,'Картофель фри',qty);
+    if(id.includes('nuggets'))addLocalCount(sides,'Наггетсы',qty);
+    if(optionList(options.extras).includes('Двойное мясо'))addLocalCount(traits,'more_meat',qty);
+    if(optionList(options.extras).includes('Сыр')||name.includes('сыр'))addLocalCount(traits,'cheese',qty);
+    if(optionList(options.extras).includes('Халапеньо')||itemSauces.some(value=>['Чили','Аджика'].includes(value)))addLocalCount(traits,'spicy',qty);
+    if(id.startsWith('custom-')){
+      customizable+=qty;
+      const veggies=optionList(options.veggies);
+      if(!veggies.some(value=>value.toLowerCase().includes('лук')))noOnion+=qty;
+      if(veggies.length>=4)addLocalCount(traits,'more_vegetables',qty);
+    }
+    if(itemSauces.length>=3)addLocalCount(traits,'more_sauce',qty);
+  });
+  if(customizable&&noOnion/customizable>=.6)addLocalCount(traits,'no_onion',noOnion);
+  if(!traits.has('spicy')&&orders.length)addLocalCount(traits,'mild',1);
+  if(![...traits.keys()].some(value=>['more_meat','more_vegetables','more_sauce'].includes(value)))addLocalCount(traits,'balanced',1);
+  return { stage:orders.length>=3?'formed':'emerging',orderCount:orders.length,proteins:topLocalCounts(proteins,2),sauces:topLocalCounts(saucesCount,3),extras:topLocalCounts(extrasCount,3),sizes:topLocalCounts(sizes,2),sides:topLocalCounts(sides,3),drinks:topLocalCounts(drinksCount,3),traits:topLocalCounts(traits,8),overrides:safeJson(LOCAL_TASTE_KEY,{}) };
+}
+
+const TASTE_LABELS={more_meat:'больше мяса',balanced:'сбалансированный состав',more_vegetables:'больше овощей',more_sauce:'больше соуса',spicy:'острое',mild:'неострое',no_onion:'без лука',cheese:'с сыром'};
+
+function effectiveTaste(profile=engagementState.taste){
+  if(!profile)return null;
+  const overrides=profile.overrides||{};
+  return { ...profile, proteins:overrides.protein?[overrides.protein]:profile.proteins||[], sizes:overrides.size?[overrides.size]:profile.sizes||[], traits:overrides.traits?.length?overrides.traits:profile.traits||[] };
+}
+function tasteSummary(profile=effectiveTaste()){
+  if(!profile)return '';
+  return [...(profile.proteins||[]).slice(0,1),...(profile.sauces||[]).slice(0,2),...(profile.traits||[]).slice(0,3).map(value=>TASTE_LABELS[value]||value),...(profile.sizes||[]).slice(0,1)].filter(Boolean).join(' · ');
+}
+function recommendedCombos(profile=effectiveTaste()){
+  if(!profile)return [];
+  const protein=profile.proteins?.[0]||'';
+  const traits=new Set(profile.traits||[]);
+  return combos.map(item=>{
+    const text=`${item.name} ${item.description} ${item.composition.join(' ')}`.toLowerCase();
+    let score=item.badge?1:0;
+    if(protein==='Курица'&&(item.categories.includes('chicken')||text.includes('куриц')))score+=5;
+    if(protein==='Говядина'&&(item.id==='burger-combo'||item.flags.includes('meat')))score+=5;
+    if(traits.has('spicy')&&['shawarma-combo','quesadilla-combo','doner-combo'].includes(item.id))score+=4;
+    if(traits.has('cheese')&&['burger-combo','sandwich-combo','quesadilla-combo'].includes(item.id))score+=4;
+    if(traits.has('more_meat')&&['mega-combo','wings-combo','burger-combo'].includes(item.id))score+=4;
+    if(traits.has('more_vegetables')&&['shawarma-combo','gyros-combo','doner-combo'].includes(item.id))score+=2;
+    if((profile.sides||[]).includes('Наггетсы')&&['fish-combo','wings-combo'].includes(item.id))score+=2;
+    return {item,score};
+  }).sort((a,b)=>b.score-a.score).slice(0,3).map(result=>result.item);
+}
+
+function activeBonus(){
+  const now=Date.now();
+  return (engagementState.bonuses||[]).find(bonus=>!bonus.usedAt&&!bonus.canceledAt&&new Date(bonus.expiresAt).getTime()>now)||null;
+}
+function activeBonusDiscount(){
+  const bonus=activeBonus();
+  if(!bonus)return 0;
+  if(bonus.type==='discount_5')return normalizedPromo()?0:Math.round(cartSubtotal()*.05);
+  if(bonus.type==='free_sauce'||bonus.type==='free_cheese')return Math.min(35,cartSubtotal());
+  if(bonus.type==='free_drink'&&cartSubtotal()>=700)return Math.min(90,cartSubtotal());
+  return 0;
+}
+function formatShortDate(value){
+  const date=new Date(value);
+  return Number.isNaN(date.getTime())?'':new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long'}).format(date);
+}
+
+function renderDrop(){
+  const section=$('#drop-section');
+  const drop=engagementState.drop;
+  if(!section)return;
+  const active=drop&&drop.available!==false&&new Date(drop.startsAt).getTime()<=Date.now()&&new Date(drop.endsAt).getTime()>Date.now()&&(drop.remaining==null||drop.remaining>0);
+  section.hidden=!active;
+  if(!active){if(dropCountdownTimer)clearInterval(dropCountdownTimer);return;}
+  $('#drop-image').src=drop.imageUrl;
+  $('#drop-image').alt=drop.name;
+  $('#drop-name').textContent=drop.name;
+  $('#drop-description').textContent=drop.description;
+  $('#drop-composition').innerHTML=(drop.composition||[]).map(item=>`<span>${esc(item)}</span>`).join('');
+  $('#drop-price').textContent=formatPrice(drop.price);
+  $('#drop-availability').textContent=drop.remaining==null?'Доступен ограниченное время':`Осталось: ${drop.remaining}`;
+  $('#drop-end-date').textContent=`До ${formatShortDate(drop.endsAt)}`;
+  $('#add-drop-btn').disabled=!active;
+  updateDropCountdown();
+  if(dropCountdownTimer)clearInterval(dropCountdownTimer);
+  dropCountdownTimer=setInterval(updateDropCountdown,1000);
+}
+function updateDropCountdown(){
+  const drop=engagementState.drop;
+  if(!drop)return;
+  const remaining=new Date(drop.endsAt).getTime()-Date.now();
+  if(remaining<=0){renderDrop();return;}
+  const days=Math.floor(remaining/86400000),hours=Math.floor(remaining%86400000/3600000),minutes=Math.floor(remaining%3600000/60000),seconds=Math.floor(remaining%60000/1000);
+  $('#drop-countdown').textContent=`${days?`${days}д `:''}${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
+}
+function addCurrentDrop(){
+  const drop=engagementState.drop;
+  if(!drop||drop.available===false||new Date(drop.endsAt).getTime()<=Date.now()||(drop.remaining!=null&&drop.remaining<=0)){
+    showToast('Этот JELANI DROP уже закончился');
+    return;
+  }
+  addCart(makeCartItem({id:`drop:${drop.id}`,name:drop.name,price:drop.price,emoji:'🔥',details:(drop.composition||[]).join(', '),options:{dropId:drop.id}}));
+}
+
+function recommendationCard(item){
+  return `<article class="taste-recommendation-card"><img src="${item.image}" alt="${esc(item.name)}"><div><span>${item.badge||'ДЛЯ ТЕБЯ'}</span><h3>${esc(item.name)}</h3><p>${esc(item.description)}</p><div><strong>${formatPrice(item.price)}</strong><button type="button" data-combo="${item.id}">Настроить комбо</button></div></div></article>`;
+}
+function renderTaste(){
+  const profile=effectiveTaste();
+  const section=$('#taste-section');
+  const accountCard=$('#taste-profile-card');
+  if(!section||!accountCard)return;
+  const visible=isAuthorized()&&profile&&profile.orderCount>0;
+  section.hidden=!visible;
+  accountCard.hidden=!visible;
+  if(!visible)return;
+  const formed=profile.stage==='formed'||profile.orderCount>=3;
+  $('#taste-title').textContent=formed?'Мы собрали комбо специально под твой вкус':'Кажется, тебе нравится…';
+  $('#taste-eyebrow').textContent=formed?'ПЕРСОНАЛЬНАЯ ПОДБОРКА':'ТВОЙ ВКУС ФОРМИРУЕТСЯ';
+  $('#taste-summary').textContent=tasteSummary(profile)||'Продолжай заказывать, и рекомендации станут точнее.';
+  $('#taste-recommendations').innerHTML=recommendedCombos(profile).map(recommendationCard).join('');
+  accountCard.innerHTML=`<div><p class="eyebrow">ТЫ ЧАЩЕ ВЫБИРАЕШЬ</p><h3>${formed?'Твой вкусовой профиль':'Кажется, тебе нравится…'}</h3><p>${esc(tasteSummary(profile)||'Пока собираем предпочтения')}</p><small>Учтено заказов: ${profile.orderCount}</small></div><div><button class="secondary-dark-btn" type="button" data-edit-taste>Изменить</button><button class="taste-reset-button" type="button" data-reset-taste>Сбросить</button></div>`;
+}
+
+function renderAccountBonus(){
+  const root=$('#account-bonus');
+  if(!root)return;
+  const bonus=activeBonus();
+  root.hidden=!bonus&&!engagementState.points;
+  if(!bonus){
+    root.innerHTML=`<div><p class="eyebrow">БОНУСНЫЕ БАЛЛЫ</p><strong>${engagementState.points} баллов</strong><span>Баланс обновляется после выполненных заказов.</span></div>`;
+    return;
+  }
+  root.innerHTML=`<div><p class="eyebrow">АКТИВНЫЙ БОНУС</p><strong>${esc(bonus.title)}</strong><span>${esc(bonus.conditions||bonus.description)}</span></div><small>до ${formatShortDate(bonus.expiresAt)}${engagementState.points?` · ${engagementState.points} баллов`:''}</small>`;
+}
+
+async function hydrateEngagement(){
+  const localTaste=buildLocalTasteProfile();
+  const [bonusData,dropData,tasteData]=await Promise.all([
+    engagementRequest('/api/bonuses'),
+    engagementRequest('/api/drop'),
+    engagementRequest('/api/taste-profile')
+  ]);
+  engagementState.bonuses=bonusData?.ok&&Array.isArray(bonusData.bonuses)?bonusData.bonuses:safeJson(LOCAL_BONUSES_KEY,[]);
+  engagementState.points=Number(bonusData?.points||0);
+  const serverTaste=tasteData?.ok?tasteData.profile:null;
+  engagementState.taste=serverTaste&&Number(serverTaste.orderCount||0)>=localTaste.orderCount?serverTaste:{...localTaste,overrides:serverTaste?.overrides||localTaste.overrides};
+  engagementState.drop=dropData?.ok?dropData.drop:(['localhost','127.0.0.1'].includes(location.hostname)?FALLBACK_DROP:null);
+  localStorage.setItem(LOCAL_BONUSES_KEY,JSON.stringify(engagementState.bonuses));
+  renderDrop();
+  renderTaste();
+  renderAccountBonus();
+  renderCart();
+}
+
+function openTasteProfile(){
+  const profile=effectiveTaste()||buildLocalTasteProfile();
+  const overrides=engagementState.taste?.overrides||{};
+  $$('input[name="taste-trait"]').forEach(input=>{input.checked=(overrides.traits||profile.traits||[]).includes(input.value);});
+  $('#taste-profile-form select[name="taste-protein"]').value=overrides.protein||profile.proteins?.[0]||'';
+  const size=overrides.size||profile.sizes?.[0]||'';
+  const sizeSelect=$('#taste-profile-form select[name="taste-size"]');
+  sizeSelect.value=[...sizeSelect.options].some(option=>option.value===size)?size:'';
+  openOverlay('#taste-profile-overlay');
+}
+
+async function saveTasteProfile(event){
+  event.preventDefault();
+  const form=new FormData(event.currentTarget);
+  const overrides={traits:form.getAll('taste-trait'),protein:String(form.get('taste-protein')||''),size:String(form.get('taste-size')||'')};
+  localStorage.setItem(LOCAL_TASTE_KEY,JSON.stringify(overrides));
+  engagementState.taste={...(engagementState.taste||buildLocalTasteProfile()),overrides};
+  void engagementRequest('/api/taste-profile','PATCH',overrides);
+  closeOverlay('#taste-profile-overlay');
+  renderTaste();
+  showToast('Вкусовой профиль обновлён');
+}
+
+async function resetTasteProfile(){
+  localStorage.removeItem(LOCAL_TASTE_KEY);
+  void engagementRequest('/api/taste-profile','DELETE');
+  engagementState.taste={...buildLocalTasteProfile(),overrides:{}};
+  closeOverlay('#taste-profile-overlay');
+  renderTaste();
+  showToast('Вкусовой профиль сброшен');
+}
+
+function revealBonus(bonus){
+  if(!bonus)return;
+  $('#bonus-name').textContent=bonus.title;
+  $('#bonus-description').textContent=bonus.description;
+  $('#bonus-conditions').textContent=bonus.conditions||'Действует на один следующий заказ.';
+  $('#bonus-expiry').textContent=`до ${formatShortDate(bonus.expiresAt)}`;
+  openOverlay('#bonus-overlay');
+}
+
+function closeBonusReveal(){
+  closeOverlay('#bonus-overlay');
+  if(pendingPostOrderSave){
+    const order=pendingPostOrderSave;
+    pendingPostOrderSave=null;
+    openSaveOrderPrompt(order.items,order.total);
+  }
 }
 
 function createTrackingToken(){
@@ -281,8 +923,8 @@ function localStatusFromOrder(order){
     flow,
     delivery: order.delivery,
     statusIndex: 0,
-    status: 'Заказ создан',
-    detail: 'Заказ ушел на кухню.',
+    status: 'Новый',
+    detail: 'Заказ передан на кухню.',
     steps: STATUS_STEPS[flow],
     terminal: false,
     canceled: false,
@@ -332,6 +974,14 @@ function upsertActiveOrder(status, trackingToken=''){
   updateStoredOrderStatus(nextOrder);
   renderOrderTracker();
   renderAccount();
+  if(normalized.canceled){
+    engagementState.taste={...buildLocalTasteProfile(),overrides:engagementState.taste?.overrides||safeJson(LOCAL_TASTE_KEY,{})};
+    void hydrateEngagement();
+  }
+}
+function createOrderId(){
+  const random=crypto.getRandomValues(new Uint32Array(1))[0]%10000;
+  return `JL-${Date.now().toString().slice(-7)}-${String(random).padStart(4,'0')}`;
 }
 
 function dismissActiveOrder(orderId){
@@ -351,7 +1001,7 @@ function renderOrderTracker(){
 
   const steps = order.steps || STATUS_STEPS[order.flow] || STATUS_STEPS.pickup;
   $('#tracker-title').textContent = `Заказ ${order.id}`;
-  $('#tracker-status').textContent = order.status || 'Заказ создан';
+  $('#tracker-status').textContent = order.status || 'Новый';
   $('#tracker-detail').textContent = order.detail || 'Статус обновляется автоматически.';
   $('#tracker-steps').innerHTML = steps.map((step, index)=>{
     const done = index < Number(order.statusIndex);
@@ -375,9 +1025,7 @@ async function syncActiveOrderStatuses(){
       if(!response.ok) return;
       const data = await response.json();
       if(data.ok && data.status) upsertActiveOrder(data.status, order.trackingToken);
-    } catch {
-      // Статус обновится при следующем опросе.
-    }
+    } catch {}
   }));
 }
 
@@ -388,43 +1036,70 @@ function startStatusPolling(){
 }
 
 function accountStatsTemplate(){
+  if(isAuthorized()&&authState.profile?.stats){
+    const stats=authState.profile.stats;
+    return [
+      ['Заказы',Number(stats.orderCount||0)],
+      ['Потрачено',formatPrice(stats.totalSpent||0)],
+      ['Сохранено',Number(stats.savedCount||0)]
+    ].map(([label,value])=>`<div class="account-stat"><span>${label}</span><strong>${value}</strong></div>`).join('');
+  }
   const orders = safeJson('jelani_orders', []);
-  const favorites = safeJson('jelani_favorites', []);
+  const favorites = savedOrders();
   const spent = orders.reduce((sum, order)=>sum + Number(order.total || 0), 0);
   return [
     ['Заказы', orders.length],
     ['Потрачено', formatPrice(spent)],
-    ['Любимые', favorites.length]
+    ['Сохранено', favorites.length]
   ].map(([label, value])=>`<div class="account-stat"><span>${label}</span><strong>${value}</strong></div>`).join('');
 }
 
 function renderAccount(){
-  const form = $('#account-form');
-  if(!form) return;
-
+  const authView=$('#auth-view');
+  const profileView=$('#account-profile-view');
+  const privateContent=$('#account-private-content');
+  if(!authView||!profileView)return;
+  const authorized=isAuthorized();
+  authView.hidden=authorized&&!authState.linking;
+  profileView.hidden=!authorized||authState.linking;
+  if(privateContent)privateContent.hidden=!authorized||authState.linking;
   const profile = getProfile();
   const nameInput = $('#account-name');
   const phoneInput = $('#account-phone');
-
-  if(nameInput && document.activeElement !== nameInput) nameInput.value = profile?.name || '';
-  if(phoneInput && document.activeElement !== phoneInput) phoneInput.value = profile?.phone || '';
-
-  $('#account-state').textContent = isAuthorized()
-    ? 'Профиль сохранен. Промокоды доступны.'
-    : 'Сохраните имя и российский номер, чтобы использовать промокоды.';
-  $('#account-stats').innerHTML = accountStatsTemplate();
+  if(authorized){
+    if(nameInput&&document.activeElement!==nameInput)nameInput.value=profile?.name||'';
+    if(phoneInput)phoneInput.value=profile?.phone||'Добавьте номер через SMS';
+    $('#account-display-name').textContent=profile?.name||'Гость JELANI';
+    $('#account-display-phone').textContent=profile?.phone||'Телефон ещё не добавлен';
+    $('#account-avatar').textContent=(profile?.name||'J').trim().charAt(0).toUpperCase();
+    $('#account-state').textContent='Профиль и адреса синхронизируются автоматически.';
+    $('#account-method-list').innerHTML=(profile?.loginMethods||[]).map(method=>`<span>${esc(authMethodLabel(method))}</span>`).join('')||'<span>Способ входа не указан</span>';
+    $('#account-stats').innerHTML=accountStatsTemplate();
+    renderAccountAddresses(profile?.addresses||[]);
+  }else{
+    const legacy=safeJson(PROFILE_KEY,null);
+    if($('#auth-name')&&document.activeElement!==$('#auth-name'))$('#auth-name').value=legacy?.name||'';
+    if($('#auth-phone')&&document.activeElement!==$('#auth-phone'))$('#auth-phone').value=legacy?.phone||'';
+  }
+  $('#auth-heading-label').textContent=authState.linking?'НОВЫЙ СПОСОБ ВХОДА':'ВХОД В ПРОФИЛЬ';
+  $('#auth-heading-title').textContent=authState.linking?'Привяжи ещё один сервис':'Заказы и бонусы на любом устройстве';
+  $('#auth-heading-copy').textContent=authState.linking?'Подтверди номер или выбери сервис. Профили объединятся автоматически.':'Войдите по подтверждённому номеру или через удобный сервис.';
+  $('#auth-cancel-link').hidden=!authState.linking;
 
   const active = currentActiveOrders()[0];
   const activeEl = $('#account-active');
   if(activeEl){
     activeEl.hidden = !active;
-    activeEl.innerHTML = active ? `<strong>${esc(active.id)} - ${esc(active.status || 'Заказ создан')}</strong><p>${esc(active.detail || 'Статус обновляется автоматически.')}</p>` : '';
+    activeEl.innerHTML = active ? `<strong>${esc(active.id)} - ${esc(active.status || 'Новый')}</strong><p>${esc(active.detail || 'Статус обновляется автоматически.')}</p>` : '';
   }
 
-  const orders = safeJson('jelani_orders', []);
+  const orders = authorized?safeJson('jelani_orders', []):[];
   $('#history-list').innerHTML = orders.length
     ? orders.map(o=>historyTemplate(o)).join('')
     : '<div class="history-empty">Заказов пока нет.<br>Оформленные заказы появятся здесь.</div>';
+  renderQuickOrder();
+  renderAccountBonus();
+  renderTaste();
 }
 
 function renderCategories(){
@@ -466,8 +1141,176 @@ function renderMenu(){
 function findMenuItem(id){ return menuItems.find(item=>item.id===id); }
 function findCombo(id){ return combos.find(item=>item.id===id); }
 function findSet(id){ return sets.find(item=>item.id===id); }
-function makeCartItem({ id, name, price, emoji, details='' }){ return { cartId:`${id}-${Date.now()}-${Math.random().toString(16).slice(2)}`, id, name, price, emoji, details, qty:1 }; }
+function makeCartItem({ id, name, price, emoji, details='', options=null }){ return { cartId:`${id}-${Date.now()}-${Math.random().toString(16).slice(2)}`, id, name, price, emoji, details, options, qty:1 }; }
 function addCart(item){ cart.push(item); saveCart(); renderCart(); showToast('Добавлено в корзину'); }
+function optionList(value){ return Array.isArray(value) ? value : value ? [value] : []; }
+
+function comboDefaultOptions(combo){
+  const flags = combo.flags || [];
+  const options = { size:combo.sizes?.[0]?.name };
+  if(flags.includes('meat') || flags.includes('мясо')) options.meat = 'Курица';
+  if(flags.includes('side')) options.side = 'Картофель фри';
+  if(flags.includes('sandwich')) options.sandwich = 'Сэндвич с курицей';
+  if(flags.includes('morning')) Object.assign(options, { morningBase:'Сырники', morningHot:'Кофе', morningCold:'Смузи' });
+  if(flags.includes('sweet')) Object.assign(options, { sweetBase:'Пахлава с мороженым', sweetDrink:'Кофе' });
+  if(flags.includes('shawarmaSauces')) options.shawarmaSauces = [];
+  if(flags.includes('friesSauce')) options.friesSauce = sauces[0];
+  if(flags.includes('drink') || flags.includes('напиток')) options.drink = drinks[0];
+  if(flags.includes('gyrosSauce') || flags.includes('gyresSauce')) options.sauce = 'Мацони';
+  else if(flags.includes('fishSauce')) options.sauce = 'Кисло-сладкий';
+  else if(flags.includes('sauce') || flags.includes('соус')) options.sauce = sauces[0];
+  if(flags.includes('twoSauces')) options.twoSauces = sauces.slice(0,2);
+  return options;
+}
+
+function comboDetails(options={}){
+  const labels = { size:'Размер', meat:'Мясо', side:'Гарнир', sandwich:'Сэндвич', morningBase:'Основа', morningHot:'Горячий напиток', morningCold:'Холодный напиток', sweetBase:'Десерт', sweetDrink:'Напиток', drink:'Напиток', shawarmaSauces:'Соусы в шаурму', friesSauce:'Соус к фри', sauce:'Соус', twoSauces:'Соусы' };
+  return Object.entries(labels).flatMap(([key,label])=>{
+    const values = optionList(options[key]);
+    return values.length ? [`${label}: ${values.join(', ')}`] : [];
+  }).join(' · ');
+}
+
+function comboCartItem(combo, options=comboDefaultOptions(combo)){
+  const size = combo.sizes?.find(item=>item.name===options.size) || combo.sizes?.[0];
+  return makeCartItem({ id:combo.id, name:combo.name, price:size?.price ?? combo.price, emoji:combo.emoji, details:comboDetails(options), options });
+}
+
+function builderPriceForOptions(type, options){
+  const base = builderBase[type];
+  if(!base || !options) return null;
+  const size = base.sizes.find(item=>item.name===options.size);
+  if(!size || !Object.prototype.hasOwnProperty.call(base.proteinPrices, options.meat)) return null;
+  const extras = optionList(options.extras);
+  const selectedSauces = optionList(options.sauces);
+  if(extras.some(name=>!base.extras.some(item=>item.name===name)) || selectedSauces.some(name=>!sauces.includes(name))) return null;
+  return size.price + base.proteinPrices[options.meat] + extras.reduce((sum,name)=>sum+(base.extras.find(item=>item.name===name)?.price || 0),0) + Math.max(0,selectedSauces.length-2)*35;
+}
+
+function builderDetails(options={}){
+  return [
+    options.meat,
+    optionList(options.veggies).length ? optionList(options.veggies).join(', ') : 'без овощей',
+    optionList(options.sauces).length ? optionList(options.sauces).join(', ') : 'без соуса',
+    optionList(options.extras).join(', ')
+  ].filter(Boolean).join(' · ');
+}
+
+function repriceCartItem(item){
+  if(String(item.id||'').startsWith('drop:')){
+    const drop=engagementState.drop;
+    const expectedId=String(item.id).slice('drop:'.length);
+    const active=drop&&drop.id===expectedId&&drop.available!==false&&new Date(drop.endsAt).getTime()>Date.now()&&(drop.remaining==null||drop.remaining>=Number(item.qty||1));
+    return active?{available:true,item:{...item,name:drop.name,price:drop.price,details:(drop.composition||[]).join(', ')}}:{available:false,item,reason:'предложение закончилось или распродано'};
+  }
+  const menuItem = findMenuItem(item.id);
+  if(menuItem) return { available:true, item:{ ...item, name:menuItem.name, price:menuItem.price, emoji:menuItem.emoji } };
+
+  const set = findSet(item.id);
+  if(set) return { available:true, item:{ ...item, name:set.name, price:set.price, emoji:set.emoji, details:set.size } };
+
+  const combo = findCombo(item.id);
+  if(combo){
+    const options = item.options || comboDefaultOptions(combo);
+    const size = combo.sizes?.find(value=>value.name===options.size);
+    if(!size) return { available:false, item, reason:'выбранный размер больше недоступен' };
+    const selectedValues = [options.drink, options.friesSauce, options.sauce, ...optionList(options.shawarmaSauces), ...optionList(options.twoSauces)].filter(Boolean);
+    const knownValues = new Set([...drinks, ...sauces, 'Мацони', 'Кисло-сладкий']);
+    if(selectedValues.some(value=>!knownValues.has(value))) return { available:false, item, reason:'выбранный вариант больше недоступен' };
+    return { available:true, item:{ ...item, name:combo.name, price:size.price, emoji:combo.emoji, details:comboDetails(options), options } };
+  }
+
+  if(item.id === 'custom-shawarma' || item.id === 'custom-sandwich'){
+    const type = item.id.replace('custom-','');
+    const price = builderPriceForOptions(type,item.options);
+    if(price == null) return { available:false, item, reason:'состав изменился' };
+    return { available:true, item:{ ...item, price, details:builderDetails(item.options) } };
+  }
+
+  const upsells = { 'upsell-fries':79, 'upsell-drink':69, 'upsell-sauce':35, 'upsell-cheese':35 };
+  if(Object.prototype.hasOwnProperty.call(upsells,item.id)) return { available:true, item:{ ...item, price:upsells[item.id] } };
+  return { available:false, item, reason:'позиции больше нет в меню' };
+}
+
+function repriceSnapshot(items=[]){
+  const checked = items.map(repriceCartItem);
+  const available = checked.filter(result=>result.available).map(result=>({ ...result.item, qty:result.item.qty || 1 }));
+  const unavailable = checked.filter(result=>!result.available);
+  return { available, unavailable, total:available.reduce((sum,item)=>sum+item.price*item.qty,0) };
+}
+
+function itemNames(items=[]){
+  return items.map(item=>`${item.name}${Number(item.qty || 1) > 1 ? ` × ${item.qty}` : ''}`).join(' · ');
+}
+
+function quickOrderCard(ref){
+  const item = ref.type === 'menu' ? findMenuItem(ref.id) : ref.type === 'combo' ? findCombo(ref.id) : findSet(ref.id);
+  if(!item) return '';
+  const description = ref.type === 'combo' ? item.composition.join(' · ') : item.description;
+  return `<article class="quick-order-card">
+    <div class="quick-order-card__icon" aria-hidden="true">${item.emoji}</div>
+    <div class="quick-order-card__body">
+      <h3>${esc(item.name)}</h3>
+      <p>${esc(description)}</p>
+      <strong>${formatPrice(item.price)}</strong>
+    </div>
+    <button class="primary-btn" type="button" data-quick-add="${ref.type}:${item.id}">Добавить за один клик</button>
+    ${ref.type === 'combo' ? `<button class="quick-edit-button" type="button" data-quick-edit="combo:${item.id}">Изменить состав</button>` : ref.type === 'menu' ? '<button class="quick-edit-button" type="button" data-quick-edit="builder:shawarma">Изменить состав</button>' : ''}
+  </article>`;
+}
+
+function renderQuickOrder(){
+  const root = $('#quick-order-content');
+  if(!root) return;
+  const orders = safeJson('jelani_orders', []);
+  const lastOrder = isAuthorized() ? orders[0] : null;
+
+  if(lastOrder){
+    const checked = repriceSnapshot(lastOrder.items || []);
+    const firstName = String(getProfile()?.name || 'Гость').trim().split(/\s+/)[0];
+    const action = checked.unavailable.length ? 'Проверить прошлый заказ' : `Повторить за ${formatPrice(checked.total)}`;
+    root.innerHTML = `<div class="quick-order-personal">
+      <div class="quick-order-personal__copy">
+        <p class="eyebrow">КАК В ПРОШЛЫЙ РАЗ</p>
+        <h2>${esc(firstName)}, повторить твой прошлый заказ?</h2>
+        <p>${esc(itemNames(lastOrder.items || []))}</p>
+        ${checked.unavailable.length ? '<span class="quick-order-warning">Есть позиции, которым нужна замена</span>' : ''}
+      </div>
+      <div class="quick-order-personal__actions">
+        <button class="primary-btn" type="button" data-quick-repeat-order="${esc(lastOrder.id)}">${action}</button>
+        <button class="secondary-dark-btn" type="button" data-quick-edit-order="${esc(lastOrder.id)}">Изменить состав</button>
+      </div>
+    </div>`;
+    return;
+  }
+
+  const refs = [
+    { type:'menu', id:'shawarma-standard-chicken' },
+    { type:'combo', id:'shawarma-combo' },
+    { type:'set', id:'duet' }
+  ];
+  root.innerHTML = `<div class="quick-order-heading"><div><p class="eyebrow">БЫСТРЫЙ ЗАКАЗ</p><h2>Не хочешь выбирать? Закажи популярное</h2></div><p>Три готовых варианта из действующего меню. Цена и состав обновляются вместе с ним.</p></div><div class="quick-order-grid">${refs.map(quickOrderCard).join('')}</div>`;
+}
+
+function addQuickOrder(value){
+  const [type,id] = String(value || '').split(':');
+  const source = type === 'menu' ? findMenuItem(id) : type === 'combo' ? findCombo(id) : findSet(id);
+  if(!source){ showToast('Эта позиция сейчас недоступна'); return; }
+  const item = type === 'combo'
+    ? comboCartItem(source)
+    : makeCartItem({ id:source.id, name:source.name, price:source.price, emoji:source.emoji, details:type === 'set' ? source.size : '' });
+  addCart(item);
+}
+
+function replaceOrAddCartItem(item, cartId){
+  if(!cartId){ addCart(item); return; }
+  const index = cart.findIndex(current=>current.cartId===cartId);
+  if(index < 0){ addCart(item); return; }
+  cart[index] = { ...item, cartId, qty:cart[index].qty || 1 };
+  saveCart();
+  renderCart();
+  showToast('Состав обновлён');
+}
 function promoMessage(){
   if(!normalizedPromo()) return '';
   if(!isAuthorized()) return 'Войдите в личный кабинет, чтобы применить промокод';
@@ -517,18 +1360,25 @@ function updateCartCount(){
   document.body.classList.toggle('has-cart', count > 0);
 }
 function renderCart(){
-  const wrapper=$('#cart-items'), empty=$('#cart-empty'), subtotal=cartSubtotal(), discount=promoDiscount(), total=cartTotal();
+  const wrapper=$('#cart-items'), empty=$('#cart-empty'), subtotal=cartSubtotal(), discount=promoDiscount(), bonusDiscount=activeBonusDiscount(), bonus=activeBonus(), total=cartTotal();
   updateCartCount();
   $('#cart-subtotal').textContent=formatPrice(subtotal);
   $('#cart-total').textContent=formatPrice(total);
   $('#checkout-total').textContent=formatPrice(total);
   $('#cart-discount').textContent=`−${formatPrice(discount)}`;
   $('#cart-discount-row').hidden = discount <= 0;
+  $('#cart-bonus-row').hidden = !bonus;
+  if(bonus){
+    $('#cart-bonus-label').textContent=bonus.title;
+    $('#cart-bonus').textContent=bonusDiscount>0?`−${formatPrice(bonusDiscount)}`:bonus.type==='double_points'?'x2':bonus.type==='free_drink'&&subtotal<700?`от ${formatPrice(700)}`:'активен';
+  }
   $('#cart-upsells').hidden = cart.length === 0;
   syncPromoInputs();
   empty.hidden=cart.length>0;
-  wrapper.innerHTML=cart.map(item=>`<article class="cart-row"><div class="cart-row__icon">${item.emoji||'🍽️'}</div><div><div class="cart-row__name">${esc(item.name)}</div>${item.details?`<div class="cart-row__details">${esc(item.details)}</div>`:''}</div><div class="cart-row__right"><div class="cart-row__price">${formatPrice(item.price*item.qty)}</div><div class="cart-qty"><button class="qty-button" data-cart-decrease="${item.cartId}" type="button">−</button><span>${item.qty}</span><button class="qty-button" data-cart-increase="${item.cartId}" type="button">+</button></div><button class="cart-remove" data-cart-remove="${item.cartId}" type="button">убрать</button></div></article>`).join('');
+  wrapper.innerHTML=cart.map(item=>`<article class="cart-row"><div class="cart-row__icon">${item.emoji||'🍽️'}</div><div><div class="cart-row__name">${esc(item.name)}</div>${item.details?`<div class="cart-row__details">${esc(item.details)}</div>`:''}${findCombo(item.id) || item.id === 'shawarma-standard-chicken' || item.id === 'custom-shawarma' || item.id === 'custom-sandwich' ? `<button class="cart-edit" data-cart-edit="${item.cartId}" type="button">изменить состав</button>` : ''}</div><div class="cart-row__right"><div class="cart-row__price">${formatPrice(item.price*item.qty)}</div><div class="cart-qty"><button class="qty-button" data-cart-decrease="${item.cartId}" type="button">−</button><span>${item.qty}</span><button class="qty-button" data-cart-increase="${item.cartId}" type="button">+</button></div><button class="cart-remove" data-cart-remove="${item.cartId}" type="button">убрать</button></div></article>`).join('');
   $('#checkout-btn').disabled=!cart.length;
+  const checkoutSubmit=$('#checkout-submit');
+  if(checkoutSubmit)checkoutSubmit.disabled=!cart.length||!paymentConfig.available;
 }
 function changeCart(id, delta){ const item=cart.find(x=>x.cartId===id); if(!item)return; item.qty+=delta; if(item.qty<=0)cart=cart.filter(x=>x.cartId!==id); saveCart();renderCart(); }
 
@@ -560,7 +1410,16 @@ function selectedComboPrice(){
 function updateComboPrice(){
   if(currentCombo) $('#combo-price').textContent=formatPrice(selectedComboPrice());
 }
-function openCombo(id){
+function applyComboPreset(options={}){
+  Object.entries(options).forEach(([key,value])=>{
+    const selected = new Set(optionList(value));
+    $$(`input[name="combo-${key}"]`).forEach(input=>{ input.checked = selected.has(input.value); });
+  });
+  syncChoiceOptions($('#combo-form'));
+  updateComboPrice();
+}
+function openCombo(id, cartId=null, presetOptions=null){
+  editingComboCartId = cartId;
   currentCombo=findCombo(id); if(!currentCombo)return;
   const f=currentCombo.flags||[];
   $('#combo-modal-hero').innerHTML=`<div class="combo-modal__image"><img src="${currentCombo.image}" alt="${currentCombo.name}"></div><div class="combo-modal__about"><p>${currentCombo.description}</p><div class="combo-composition">${currentCombo.composition.map(item=>`<span>${item}</span>`).join('')}</div><strong>Выгода ${formatPrice(currentCombo.saving)}</strong></div>`;
@@ -581,15 +1440,19 @@ function openCombo(id){
   $('#combo-form').innerHTML=html;
   updateComboPrice();
   syncChoiceOptions($('#combo-form'));
+  if(presetOptions) applyComboPreset(presetOptions);
   openOverlay('#combo-overlay');
 }
 function valuesByName(name){ return $$(`input[name="${name}"]:checked`).map(el=>el.value); }
 function addCombo(){
   if(!currentCombo)return; const data=[]; const f=currentCombo.flags||[];
+  const options={};
   const detailLabels={size:'Размер',meat:'Мясо',side:'Гарнир',sandwich:'Сэндвич',morningBase:'Основа',morningHot:'Горячий напиток',morningCold:'Холодный напиток',sweetBase:'Десерт',sweetDrink:'Напиток',drink:'Напиток',shawarmaSauces:'Соусы в шаурму',friesSauce:'Соус к фри',sauce:'Соус',twoSauces:'Соусы'};
   const possible=['size','meat','side','sandwich','morningBase','morningHot','morningCold','sweetBase','sweetDrink','drink','shawarmaSauces','friesSauce','sauce','twoSauces'];
-  possible.forEach(key=>{const list=valuesByName(`combo-${key}`);if(list.length)data.push(`${detailLabels[key]}: ${list.join(', ')}`);});
-  addCart(makeCartItem({id:currentCombo.id,name:currentCombo.name,price:selectedComboPrice(),emoji:currentCombo.emoji,details:data.join(' · ')})); closeOverlay('#combo-overlay');
+  possible.forEach(key=>{const list=valuesByName(`combo-${key}`);if(list.length){options[key]=list.length===1?list[0]:list;data.push(`${detailLabels[key]}: ${list.join(', ')}`);}});
+  replaceOrAddCartItem(makeCartItem({id:currentCombo.id,name:currentCombo.name,price:selectedComboPrice(),emoji:currentCombo.emoji,details:data.join(' · '),options}), editingComboCartId);
+  editingComboCartId = null;
+  closeOverlay('#combo-overlay');
 }
 
 function initialBuilderState(type){
@@ -663,10 +1526,24 @@ function updateBuilderSummary(){
   const phrase=[builderState.meat, builderState.veggies.length?builderState.veggies.join(', '):'без овощей', builderState.sauces.length?`соусы: ${builderState.sauces.join(', ')}`:'без соуса', builderState.extras.length?`добавки: ${builderState.extras.join(', ')}`:''].filter(Boolean).join(' · ');
   $('#builder-summary-text').textContent=phrase; $('#builder-price').textContent=formatPrice(price);
 }
-function openBuilder(type){ currentBuilderType=type; builderState=initialBuilderState(type); renderBuilder(); openOverlay('#builder-overlay'); }
+function openBuilder(type, cartId=null, presetOptions=null){
+  currentBuilderType=type;
+  editingBuilderCartId=cartId;
+  builderState=presetOptions ? {
+    ...presetOptions,
+    type,
+    veggies:[...optionList(presetOptions.veggies)],
+    sauces:[...optionList(presetOptions.sauces)],
+    extras:[...optionList(presetOptions.extras)]
+  } : initialBuilderState(type);
+  renderBuilder();
+  openOverlay('#builder-overlay');
+}
 function addBuilder(){
   const base=builderBase[currentBuilderType]; const price=builderPrice(); const details=[builderState.meat, builderState.veggies.length?builderState.veggies.join(', '):'без овощей', builderState.sauces.length?builderState.sauces.join(', '):'без соуса', builderState.extras.join(', ')].filter(Boolean).join(' · ');
-  addCart(makeCartItem({id:`custom-${currentBuilderType}`,name:`${base.label} — своя сборка`,price,emoji:base.icon,details})); closeOverlay('#builder-overlay');
+  replaceOrAddCartItem(makeCartItem({id:`custom-${currentBuilderType}`,name:`${base.label} — своя сборка`,price,emoji:base.icon,details,options:{...builderState,veggies:[...builderState.veggies],sauces:[...builderState.sauces],extras:[...builderState.extras]}}), editingBuilderCartId);
+  editingBuilderCartId = null;
+  closeOverlay('#builder-overlay');
 }
 
 function addUpsell(kind){
@@ -679,30 +1556,58 @@ function addUpsell(kind){
   if(upsells[kind]) addCart(makeCartItem(upsells[kind]));
 }
 function snapshotItems(items=cart){
-  return items.map(item=>({ id:item.id, name:item.name, price:item.price, emoji:item.emoji, details:item.details, qty:item.qty }));
+  return items.map(item=>({ id:item.id, name:item.name, price:item.price, emoji:item.emoji, details:item.details, options:item.options||null, qty:item.qty }));
 }
 function restoreCart(items){
   cart = (items || []).map(item => ({ ...makeCartItem(item), qty:item.qty || 1 }));
   saveCart();
   renderCart();
-  closeOverlays(['#history-overlay', '#favorites-overlay', '#search-overlay']);
+  closeOverlays(['#history-overlay', '#favorites-overlay', '#search-overlay', '#availability-overlay', '#save-order-overlay']);
   openOverlay('#cart-overlay');
   showToast('Заказ добавлен в корзину');
 }
 function saveFavoriteFromCart(){
   if(!cart.length){ showToast('Корзина пока пустая'); return; }
-  const favorites = safeJson('jelani_favorites', []);
-  favorites.unshift({ id:`FAV-${Date.now().toString().slice(-6)}`, date:new Date().toLocaleString('ru-RU'), total:cartTotal(), items:snapshotItems() });
-  localStorage.setItem('jelani_favorites', JSON.stringify(favorites.slice(0,20)));
-  showToast('Добавлено в любимые заказы');
+  openSaveOrderPrompt(snapshotItems(),cartTotal());
 }
 function saveFavoriteOrder(orderId){
   const order = safeJson('jelani_orders', []).find(item=>item.id===orderId);
   if(!order) return;
-  const favorites = safeJson('jelani_favorites', []);
-  favorites.unshift({ id:`FAV-${Date.now().toString().slice(-6)}`, date:new Date().toLocaleString('ru-RU'), total:order.total, items:snapshotItems(order.items) });
-  localStorage.setItem('jelani_favorites', JSON.stringify(favorites.slice(0,20)));
-  showToast('Заказ добавлен в избранное');
+  openSaveOrderPrompt(snapshotItems(order.items),order.total);
+}
+function openSaveOrderPrompt(items, total, existingId=null){
+  const existing = existingId ? savedOrders().find(order=>order.id===existingId) : null;
+  pendingSavedOrder = existing
+    ? { ...existing, mode:'rename' }
+    : { id:`SAVED-${Date.now().toString().slice(-8)}`, date:new Date().toLocaleString('ru-RU'), createdAt:new Date().toISOString(), total:Number(total || 0), items:snapshotItems(items), mode:'create' };
+  $('#save-order-title').textContent = existing ? 'Переименовать заказ' : 'Как назвать заказ?';
+  $('#save-order-name').value = existing?.name || '';
+  closeOverlays(['#cart-overlay', '#history-overlay', '#favorites-overlay']);
+  openOverlay('#save-order-overlay');
+  window.setTimeout(()=>$('#save-order-name')?.focus(),100);
+}
+function savePendingOrder(name){
+  if(!pendingSavedOrder) return;
+  const cleanName = String(name || '').trim();
+  if(!cleanName){ showToast('Введите название заказа'); return; }
+  const orders = savedOrders();
+  if(pendingSavedOrder.mode === 'rename'){
+    const updatedAt = new Date().toISOString();
+    const next = orders.map(order=>order.id===pendingSavedOrder.id ? { ...order, name:cleanName, updatedAt } : order);
+    storeSavedOrders(next);
+    void savedOrdersRequest('PATCH',`/${encodeURIComponent(pendingSavedOrder.id)}`,{ name:cleanName });
+    showToast('Заказ переименован');
+  } else {
+    const { mode, ...draft } = pendingSavedOrder;
+    const saved = { ...draft, name:cleanName, updatedAt:new Date().toISOString() };
+    storeSavedOrders([saved, ...orders]);
+    void syncSavedOrder(saved);
+    showToast('Заказ сохранён');
+  }
+  pendingSavedOrder = null;
+  closeOverlay('#save-order-overlay');
+  renderAccount();
+  if($('#favorites-overlay')?.classList.contains('open')) openFavorites();
 }
 function updateDeliveryFields(){
   const select = $('#delivery-select');
@@ -711,6 +1616,7 @@ function updateDeliveryFields(){
   const needsAddress = select?.value === 'Доставка';
   if(field) field.hidden = !needsAddress;
   if(input) input.required = needsAddress;
+  renderPaymentConfig();
 }
 function normalizeRussianPhone(phone){
   const digits = String(phone || '').replace(/\D/g, '');
@@ -731,6 +1637,57 @@ function validatePhoneField(input){
   input.setCustomValidity(valid ? '' : 'Введите российский мобильный номер: +7 9XX XXX-XX-XX');
   return valid;
 }
+function renderPaymentConfig(){
+  const methods=paymentConfig.methods||{};
+  const inputs=$$('#payment-methods input[name="payment"]');
+  const pickup=$('#delivery-select')?.value!=='Доставка';
+  inputs.forEach(input=>{
+    const methodAvailable=input.value==='bank_card'?methods.bankCard:input.value==='sbp'?methods.sbp:methods.cash&&pickup;
+    const enabled=paymentConfig.available&&methodAvailable;
+    input.disabled=!enabled;
+    if(!enabled)input.checked=false;
+  });
+  if(!inputs.some(input=>input.checked&&!input.disabled)){
+    const preferred=inputs.find(input=>!input.disabled);
+    if(preferred)preferred.checked=true;
+  }
+  const emailField=$('#receipt-email-field');
+  const emailInput=emailField?.querySelector('input');
+  const selected=inputs.find(input=>input.checked&&!input.disabled);
+  const cashSelected=selected?.value==='cash';
+  const needsReceiptEmail=Boolean(paymentConfig.receiptEmailRequired&&!cashSelected&&selected);
+  if(emailField)emailField.hidden=!needsReceiptEmail;
+  if(emailInput)emailInput.required=needsReceiptEmail;
+  const status=$('#payment-status');
+  const ready=Boolean(selected);
+  status?.classList.toggle('is-ready',ready);
+  status?.classList.toggle('is-error',!ready);
+  if($('#payment-status-title'))$('#payment-status-title').textContent=cashSelected
+    ? 'Оплата при получении'
+    : ready ? 'Безопасная предоплата' : pickup ? 'Выберите способ оплаты' : 'Для доставки нужна онлайн-оплата';
+  if($('#payment-status-copy'))$('#payment-status-copy').textContent=cashSelected
+    ? 'Оплатите заказ наличными при самовывозе.'
+    : ready ? 'После подтверждения оплаты заказ автоматически поступит на кухню.'
+      : pickup ? 'Доступные способы оплаты появятся здесь.' : 'Наличные доступны только при самовывозе.';
+  if($('#checkout-note'))$('#checkout-note').textContent=cashSelected
+    ? 'После оформления мы сразу передадим заказ на кухню. Статус появится здесь автоматически.'
+    : 'После подтверждения оплаты мы сразу передадим заказ на кухню. Статус появится здесь автоматически.';
+  const submit=$('#checkout-submit');
+  if(submit){
+    submit.disabled=!ready||!cart.length;
+    submit.innerHTML=cashSelected?'Оформить заказ <span>→</span>':'Перейти к оплате <span>→</span>';
+  }
+}
+async function hydratePaymentConfig(){
+  try{
+    const config=await apiRequest('/api/payment/config');
+    paymentConfig={...paymentConfig,...config};
+  }catch{
+    const localPreview=['127.0.0.1','localhost'].includes(location.hostname);
+    paymentConfig={available:localPreview,methods:{bankCard:false,sbp:false,cash:localPreview},receiptEmailRequired:false};
+  }
+  renderPaymentConfig();
+}
 function openCheckout(){
   if(!cart.length){showToast('Сначала добавь позиции в корзину');return;}
   $('#checkout-total').textContent=formatPrice(cartTotal());
@@ -739,9 +1696,14 @@ function openCheckout(){
   if(profile && form){
     const nameInput = form.querySelector('input[name="name"]');
     const phoneInput = form.querySelector('input[name="phone"]');
+    const addressInput = form.querySelector('input[name="address"]');
+    const emailInput = form.querySelector('input[name="email"]');
     if(nameInput && !nameInput.value) nameInput.value = profile.name || '';
     if(phoneInput && !phoneInput.value) phoneInput.value = profile.phone || '';
+    if(addressInput && !addressInput.value) addressInput.value = profile.addresses?.find(address=>address.isDefault)?.address || profile.addresses?.[0]?.address || '';
+    if(emailInput && !emailInput.value) emailInput.value = profile.identities?.find(identity=>identity.email)?.email || '';
   }
+  renderPaymentConfig();
   syncPromoInputs();
   updateDeliveryFields();
   closeOverlay('#cart-overlay');
@@ -750,18 +1712,163 @@ function openCheckout(){
 async function sendOrderToServer(order){
   const response = await fetch('/api/order', {
     method:'POST',
-    headers:{ 'Content-Type':'application/json' },
+    credentials:'same-origin',
+    headers:apiHeaders(true),
     body:JSON.stringify(order)
   });
   const data = await response.json().catch(()=>({ ok:false }));
-  if(!response.ok || data.ok === false) throw new Error(data.error || 'Telegram не подключён');
+  if(!response.ok || data.ok === false) throw new Error(data.error || 'Не удалось создать оплату. Попробуйте ещё раз.');
   return data;
+}
+function storePendingPayment(order){
+  localStorage.setItem(PENDING_PAYMENT_KEY,JSON.stringify({order,createdAt:new Date().toISOString()}));
+}
+function pendingPayment(){
+  return safeJson(PENDING_PAYMENT_KEY,null);
+}
+function setPaymentResult(state,title,copy){
+  const modal=$('#payment-overlay .payment-result-modal');
+  const mark=$('#payment-result-mark');
+  const check=$('#payment-check');
+  const retry=$('#payment-retry');
+  modal?.classList.toggle('is-success',state==='success');
+  modal?.classList.toggle('is-canceled',state==='canceled'||state==='error');
+  if($('#payment-result-title'))$('#payment-result-title').textContent=title;
+  if($('#payment-result-copy'))$('#payment-result-copy').textContent=copy;
+  if(mark)mark.textContent=state==='success'?'✓':state==='canceled'||state==='error'?'×':'•••';
+  if(check){
+    check.hidden=state==='canceled';
+    check.disabled=state==='checking';
+    check.dataset.paymentAction=state==='success'?'done':'check';
+    check.innerHTML=state==='success'?'Перейти к заказу <span>→</span>':state==='checking'?'Проверяем...':'Проверить ещё раз <span>→</span>';
+  }
+  if(retry)retry.hidden=state!=='canceled';
+}
+function clearPaymentQuery(){
+  const url=new URL(location.href);
+  url.searchParams.delete('payment');
+  url.searchParams.delete('order');
+  url.searchParams.delete('track');
+  history.replaceState({},'',`${url.pathname}${url.search}${url.hash}`);
+}
+function completePaidCheckout(data,order){
+  const status=data.status||localStatusFromOrder(order);
+  order.subtotal=Number(data.order?.subtotal??order.subtotal);
+  order.discount=Number(data.order?.discount??order.discount);
+  order.total=Number(data.order?.total??order.total);
+  if(Array.isArray(data.order?.items))order.items=data.order.items;
+  order.status=status.status;
+  order.statusDetail=status.detail;
+  order.tracking=true;
+  order.paymentStatus=data.payment?.status||status.paymentStatus||'succeeded';
+  order.awardedBonus=data.awardedBonus||null;
+  if(Array.isArray(data.activeBonuses)){
+    engagementState.bonuses=data.activeBonuses;
+    localStorage.setItem(LOCAL_BONUSES_KEY,JSON.stringify(data.activeBonuses));
+  }
+  upsertActiveOrder(status,order.trackingToken);
+  const orders=safeJson('jelani_orders',[]).filter(item=>item.id!==order.id);
+  orders.unshift(order);
+  localStorage.setItem('jelani_orders',JSON.stringify(orders.slice(0,30)));
+  engagementState.taste={...buildLocalTasteProfile(),overrides:engagementState.taste?.overrides||safeJson(LOCAL_TASTE_KEY,{})};
+  if(order.discount>0&&String(order.promo||'').toUpperCase()==='JELANI10')localStorage.setItem('jelani_first_order_used','true');
+  promoCode='';
+  localStorage.removeItem('jelani_promo');
+  localStorage.removeItem(PENDING_PAYMENT_KEY);
+  pendingCheckoutOrder=null;
+  cart=[];
+  saveCart();
+  const form=$('#checkout-form');
+  form?.reset();
+  updateDeliveryFields();
+  renderCart();
+  renderPaymentConfig();
+  renderAccount();
+  checkoutSubmitting=false;
+  pendingPaidFollowup={order,bonus:order.awardedBonus};
+  clearPaymentQuery();
+  closeOverlay('#checkout-overlay');
+  openOverlay('#payment-overlay');
+  const cashOrder=order.paymentStatus==='cash_on_pickup';
+  setPaymentResult('success',cashOrder?'Заказ принят':'Оплата прошла',cashOrder
+    ? `Заказ ${order.id} передан на кухню. Оплата наличными при самовывозе.`
+    : `Заказ ${order.id} передан на кухню. Статус будет обновляться автоматически.`);
+}
+function finishPaymentFollowup(){
+  closeOverlay('#payment-overlay');
+  if(!pendingPaidFollowup)return;
+  const {order,bonus}=pendingPaidFollowup;
+  pendingPaidFollowup=null;
+  showToast(`Заказ ${order.id} принят`);
+  renderAccountBonus();
+  renderTaste();
+  if(bonus){pendingPostOrderSave=order;revealBonus(bonus);}
+  else openSaveOrderPrompt(order.items,order.total);
+}
+function retryCanceledPayment(){
+  localStorage.removeItem(PENDING_PAYMENT_KEY);
+  pendingCheckoutOrder=null;
+  checkoutSubmitting=false;
+  clearPaymentQuery();
+  closeOverlay('#payment-overlay');
+  openCheckout();
+}
+async function checkReturnedPayment(){
+  const params=new URLSearchParams(location.search);
+  const pending=pendingPayment();
+  const orderId=params.get('order')||pending?.order?.id||'';
+  const trackingToken=params.get('track')||pending?.order?.trackingToken||'';
+  if(!orderId||!trackingToken){
+    setPaymentResult('error','Не удалось найти заказ','Откройте личный кабинет или свяжитесь с нами, если деньги списались.');
+    return;
+  }
+  setPaymentResult('checking','Проверяем оплату','Получаем актуальный статус напрямую у платёжного сервиса.');
+  try{
+    const data=await apiRequest(`/api/payment/status?id=${encodeURIComponent(orderId)}&track=${encodeURIComponent(trackingToken)}`);
+    const paymentStatus=data.payment?.status||data.status?.paymentStatus||'pending';
+    if(paymentStatus==='succeeded'||paymentStatus==='refunded'){
+      const order=pending?.order||{
+        id:orderId,trackingToken,date:new Date().toLocaleString('ru-RU'),delivery:data.status?.delivery||'',
+        items:data.order?.items||[],subtotal:data.order?.subtotal||0,discount:data.order?.discount||0,total:data.order?.total||0
+      };
+      completePaidCheckout(data,order);
+      return;
+    }
+    if(paymentStatus==='canceled'){
+      localStorage.removeItem(PENDING_PAYMENT_KEY);
+      pendingCheckoutOrder=null;
+      clearPaymentQuery();
+      setPaymentResult('canceled','Оплата не завершена','Деньги не списаны. Корзина сохранена, можно выбрать способ оплаты и попробовать ещё раз.');
+      return;
+    }
+    setPaymentResult('pending','Ждём подтверждение','Платёж ещё обрабатывается. Обычно это занимает несколько секунд.');
+  }catch(error){
+    setPaymentResult('error','Не удалось проверить оплату',error.message||'Попробуйте проверить статус ещё раз.');
+  }
+}
+function handlePaymentReturn(){
+  if(new URLSearchParams(location.search).get('payment')!=='return')return;
+  openOverlay('#payment-overlay');
+  void checkReturnedPayment();
 }
 async function completeCheckout(event){
   event.preventDefault();
+  if(checkoutSubmitting) return;
+  if(!paymentConfig.available){showToast('Приём заказов пока настраивается');return;}
   const formEl = event.currentTarget;
   const submit = formEl.querySelector('button[type="submit"]');
   const form = new FormData(formEl);
+  const payment = form.get('payment');
+  if(!payment){
+    showToast('Выберите способ оплаты');
+    return;
+  }
+  const selectedPayment=formEl.querySelector('input[name="payment"]:checked');
+  if(!selectedPayment||selectedPayment.disabled){showToast('Этот способ оплаты сейчас недоступен');return;}
+  if(payment==='cash'&&form.get('delivery')!=='Самовывоз'){
+    showToast('Наличные доступны только при самовывозе');
+    return;
+  }
   const phoneInput = formEl.querySelector('input[name="phone"]');
   if(!validatePhoneField(phoneInput)){
     phoneInput.reportValidity();
@@ -772,78 +1879,90 @@ async function completeCheckout(event){
   const customerName = String(form.get('name') || '').trim();
   try {
     saveProfile({ name: customerName, phone: phoneInput.value });
-  } catch {
-    // Форма уже проверяет обязательные поля; профиль просто не сохранится при ручной подмене.
-  }
+  } catch {}
   promoCode = String(form.get('promo') || promoCode || '').trim().toUpperCase();
   if(promoCode && !isAuthorized()){
     promoCode = '';
     localStorage.removeItem('jelani_promo');
     syncPromoInputs();
     openHistory();
-    showToast('Сначала сохраните профиль для промокода');
+    showToast('Сначала войдите в профиль для промокода');
     return;
   }
   if(promoCode) localStorage.setItem('jelani_promo', promoCode);
   else localStorage.removeItem('jelani_promo');
-  const discount = promoDiscount();
+  const discount = promoDiscount() + activeBonusDiscount();
+  const selectedBonus = activeBonus();
   const trackingToken = createTrackingToken();
-  const order = {
-    id:`JL-${Date.now().toString().slice(-7)}`,
-    status:'Заказ создан',
+  const order = pendingCheckoutOrder || {
+    id:createOrderId(),
+    status:'Новый',
     date:new Date().toLocaleString('ru-RU'),
     name:customerName,
     phone:phoneInput.value,
     delivery:form.get('delivery'),
     address:form.get('address') || '',
-    payment:form.get('payment'),
+    email:form.get('email') || '',
+    payment,
     comment:form.get('comment') || '',
     promo:normalizedPromo(),
     subtotal:cartSubtotal(),
     discount,
     total:cartTotal(),
+    bonusId:selectedBonus?.id || '',
     items:snapshotItems(),
     trackingToken,
     profile:profilePayload()
   };
+  pendingCheckoutOrder = order;
 
+  const initialSubmitHtml = submit.innerHTML;
+  checkoutSubmitting = true;
   submit.disabled = true;
-  submit.textContent = 'Отправляем заказ...';
-  let telegramSent = false;
+  submit.textContent = payment==='cash'?'Отправляем заказ...':'Создаём оплату...';
   try {
     const data = await sendOrderToServer(order);
-    telegramSent = true;
-    const status = data.status || localStatusFromOrder(order);
-    order.status = status.status;
-    order.statusDetail = status.detail;
-    order.tracking = Boolean(data.tracking);
-    upsertActiveOrder(status, trackingToken);
+    order.subtotal = Number(data.order?.subtotal ?? order.subtotal);
+    order.discount = Number(data.order?.discount ?? order.discount);
+    order.total = Number(data.order?.total ?? order.total);
+    if(Array.isArray(data.order?.items)) order.items = data.order.items;
+    storePendingPayment(order);
+    if(data.payment?.status==='succeeded'||data.payment?.status==='cash_on_pickup'){
+      completePaidCheckout(data,order);
+      submit.innerHTML=initialSubmitHtml;
+      return;
+    }
+    if(data.payment?.status==='canceled'){
+      localStorage.removeItem(PENDING_PAYMENT_KEY);
+      pendingCheckoutOrder=null;
+      checkoutSubmitting=false;
+      submit.disabled=false;
+      submit.innerHTML=initialSubmitHtml;
+      openOverlay('#payment-overlay');
+      setPaymentResult('canceled','Оплата не завершена','Корзина сохранена. Выберите способ оплаты и попробуйте ещё раз.');
+      return;
+    }
+    const confirmationUrl=String(data.payment?.confirmationUrl||'');
+    if(!/^https:\/\//.test(confirmationUrl))throw new Error('Платёжный сервис не вернул ссылку для оплаты.');
+    submit.textContent='Переходим к оплате...';
+    location.assign(confirmationUrl);
+    return;
   } catch (error) {
-    order.status = 'Сохранён локально';
-    order.telegramError = error.message;
+    checkoutSubmitting = false;
+    if(error.message==='Время оплаты истекло. Оформите заказ заново.'){
+      pendingCheckoutOrder=null;
+      localStorage.removeItem(PENDING_PAYMENT_KEY);
+    }
+    submit.disabled = false;
+    submit.innerHTML = initialSubmitHtml;
+    showToast(error.message || 'Не удалось создать оплату. Попробуйте ещё раз.');
+    return;
   }
-
-  const orders=safeJson('jelani_orders', []);
-  orders.unshift(order);
-  localStorage.setItem('jelani_orders', JSON.stringify(orders.slice(0,30)));
-  if(discount > 0 && normalizedPromo() === 'JELANI10') localStorage.setItem('jelani_first_order_used','true');
-  promoCode='';
-  localStorage.removeItem('jelani_promo');
-  cart=[];
-  saveCart();
-  renderCart();
-  formEl.reset();
-  updateDeliveryFields();
-  renderAccount();
-  submit.disabled = false;
-  submit.innerHTML = 'Подтвердить заказ <span>→</span>';
-  closeOverlay('#checkout-overlay');
-  showToast(telegramSent ? `Заказ ${order.id} принят` : `Заказ ${order.id} сохранён на устройстве`);
 }
 function orderSummary(order){
   const count=(order.items||[]).reduce((sum,item)=>sum+(item.qty||1),0);
   const delivery = order.delivery ? ` · ${esc(order.delivery)}` : '';
-  const status = order.status || (order.delivery ? 'Заказ создан' : 'Любимый заказ');
+  const status = order.status || (order.delivery ? 'Новый' : 'Любимый заказ');
   return `${order.date}${delivery} · ${count} поз. · ${esc(status)}`;
 }
 function historyTemplate(order, favorite=false){
@@ -853,7 +1972,22 @@ function historyTemplate(order, favorite=false){
     ${order.statusDetail ? `<div class="history-item__status">${esc(order.statusDetail)}</div>` : ''}
     <div class="history-item__actions">
       <button type="button" data-repeat-${favorite ? 'favorite' : 'order'}="${order.id}">Заказать снова</button>
-      ${favorite ? '' : `<button type="button" data-favorite-order="${order.id}">В избранное</button>`}
+      ${favorite ? '' : `<button type="button" data-favorite-order="${order.id}">Сохранить заказ</button>`}
+    </div>
+  </article>`;
+}
+function savedOrderTemplate(order){
+  const checked = repriceSnapshot(order.items || []);
+  const changed = Number(order.total || 0) !== checked.total;
+  return `<article class="history-item saved-order-item">
+    <div class="history-item__top"><strong>${esc(order.name || 'Сохранённый заказ')}</strong><span>${formatPrice(checked.total)}</span></div>
+    <p>${esc(itemNames(order.items || []))}</p>
+    ${checked.unavailable.length ? `<div class="saved-order-notice">Нужна замена: ${checked.unavailable.map(result=>esc(result.item.name)).join(', ')}</div>` : changed ? '<div class="saved-order-notice">Цена обновлена по текущему меню</div>' : ''}
+    <div class="history-item__actions">
+      <button type="button" data-repeat-favorite="${order.id}">Повторить</button>
+      <button type="button" data-edit-saved-order="${order.id}">Изменить состав</button>
+      <button type="button" data-rename-saved-order="${order.id}">Переименовать</button>
+      <button type="button" data-delete-saved-order="${order.id}">Удалить</button>
     </div>
   </article>`;
 }
@@ -863,18 +1997,61 @@ function openHistory(){
   openOverlay('#history-overlay');
 }
 function openFavorites(){
-  const favorites=safeJson('jelani_favorites', []);
-  $('#favorites-list').innerHTML=favorites.length?favorites.map(o=>historyTemplate(o,true)).join(''):'<div class="history-empty">Любимых заказов пока нет.<br>Сохрани корзину или заказ из истории.</div>';
+  const favorites=savedOrders();
+  $('#favorites-list').innerHTML=favorites.length?favorites.map(savedOrderTemplate).join(''):'<div class="history-empty">Сохранённых заказов пока нет.<br>Сохрани корзину или заказ из истории.</div>';
   closeOverlays(['#history-overlay', '#cart-overlay']);
   openOverlay('#favorites-overlay');
 }
+function prepareRepeat(items){
+  const checked = repriceSnapshot(items || []);
+  if(!checked.unavailable.length){ restoreCart(checked.available); return; }
+  pendingRepeatItems = checked.available;
+  $('#availability-list').innerHTML = checked.unavailable.map(result=>`<div><strong>${esc(result.item.name)}</strong><span>${esc(result.reason)}</span></div>`).join('');
+  $('#repeat-available-btn').disabled = checked.available.length === 0;
+  closeOverlays(['#history-overlay', '#favorites-overlay', '#cart-overlay']);
+  openOverlay('#availability-overlay');
+}
 function repeatOrder(orderId){
   const order = safeJson('jelani_orders', []).find(item=>item.id===orderId);
-  if(order) restoreCart(order.items);
+  if(order) prepareRepeat(order.items);
 }
 function repeatFavorite(orderId){
-  const order = safeJson('jelani_favorites', []).find(item=>item.id===orderId);
-  if(order) restoreCart(order.items);
+  const order = savedOrders().find(item=>item.id===orderId);
+  if(order) prepareRepeat(order.items);
+}
+function renameSavedOrder(orderId){
+  const order = savedOrders().find(item=>item.id===orderId);
+  if(order) openSaveOrderPrompt(order.items,order.total,order.id);
+}
+function deleteSavedOrder(orderId){
+  const order = savedOrders().find(item=>item.id===orderId);
+  if(!order || !window.confirm(`Удалить «${order.name}»?`)) return;
+  storeSavedOrders(savedOrders().filter(item=>item.id!==orderId));
+  void savedOrdersRequest('DELETE',`/${encodeURIComponent(orderId)}`);
+  openFavorites();
+  renderAccount();
+  showToast('Заказ удалён');
+}
+function editCartItem(cartId){
+  const item = cart.find(current=>current.cartId===cartId);
+  if(!item) return;
+  closeOverlay('#cart-overlay');
+  const combo = findCombo(item.id);
+  if(combo){ openCombo(combo.id,cartId,item.options || comboDefaultOptions(combo)); return; }
+  if(item.id === 'shawarma-standard-chicken'){
+    openBuilder('shawarma',cartId,initialBuilderState('shawarma'));
+    return;
+  }
+  if(item.id === 'custom-shawarma' || item.id === 'custom-sandwich'){
+    openBuilder(item.id.replace('custom-',''),cartId,item.options);
+  }
+}
+function openSearchModal(query=''){
+  activeSearchFilter = '';
+  $('#search-input').value = query;
+  renderSearch(query);
+  openOverlay('#search-overlay');
+  window.setTimeout(()=>$('#search-input')?.focus(),100);
 }
 function searchMatches(item, clean){
   return !clean || `${item.name} ${item.description || ''} ${item.category || ''} ${(item.tags||[]).join(' ')}`.toLowerCase().includes(clean);
@@ -912,7 +2089,6 @@ function updateStoreStatus(){
 }
 
 
-/* ========== HERO CAROUSEL ========== */
 let heroSlideIndex = 0;
 let heroSlideTimer = null;
 
@@ -970,8 +2146,6 @@ function initHeroCarousel() {
 }
 
 function bindEvents(){
-  // Выбор внутри комбо и конструктора делаем явным через JS.
-  // Так карточки выбора одинаково надёжно работают на iPhone, Android и компьютере.
   document.addEventListener('click', event => {
     const control = event.target.closest('[data-choice-control]');
     if(!control) return;
@@ -997,16 +2171,33 @@ function bindEvents(){
     if(target.dataset.category){currentCategory=target.dataset.category;renderCategories();renderMenu();}
     if(target.dataset.add){const item=findMenuItem(target.dataset.add);if(item)addCart(makeCartItem({id:item.id,name:item.name,price:item.price,emoji:item.emoji,details:''}));}
     if(target.dataset.set){const item=findSet(target.dataset.set);if(item)addCart(makeCartItem({id:item.id,name:item.name,price:item.price,emoji:item.emoji,details:item.size}));}
+    if(target.dataset.quickAdd) addQuickOrder(target.dataset.quickAdd);
+    if(target.dataset.quickEdit){
+      const [type,id] = target.dataset.quickEdit.split(':');
+      if(type === 'combo') openCombo(id);
+      if(type === 'builder') openBuilder(id);
+    }
+    if(target.dataset.quickRepeatOrder) repeatOrder(target.dataset.quickRepeatOrder);
+    if(target.dataset.quickEditOrder) repeatOrder(target.dataset.quickEditOrder);
+    if(target.dataset.editTaste !== undefined) openTasteProfile();
+    if(target.dataset.resetTaste !== undefined && window.confirm('Сбросить вкусовой профиль?')) resetTasteProfile();
     if(target.dataset.upsell) addUpsell(target.dataset.upsell);
     if(target.dataset.repeatOrder) repeatOrder(target.dataset.repeatOrder);
     if(target.dataset.repeatFavorite) repeatFavorite(target.dataset.repeatFavorite);
     if(target.dataset.favoriteOrder) saveFavoriteOrder(target.dataset.favoriteOrder);
+    if(target.dataset.editSavedOrder) repeatFavorite(target.dataset.editSavedOrder);
+    if(target.dataset.renameSavedOrder) renameSavedOrder(target.dataset.renameSavedOrder);
+    if(target.dataset.deleteSavedOrder) deleteSavedOrder(target.dataset.deleteSavedOrder);
+    if(target.dataset.savedName !== undefined) $('#save-order-name').value = target.dataset.savedName;
     if(target.dataset.openFavorites !== undefined){closeMobileMenu();openFavorites();}
     if(target.dataset.searchFilter){activeSearchFilter = activeSearchFilter === target.dataset.searchFilter ? '' : target.dataset.searchFilter; renderSearch($('#search-input').value);}
-    if(target.dataset.reviewAction) showToast('Отзывы можно собирать через Telegram или форму после запуска');
+    if(target.dataset.reviewAction) showToast('Спасибо! Раздел отзывов скоро появится');
     if(target.dataset.cartIncrease)changeCart(target.dataset.cartIncrease,1);
     if(target.dataset.cartDecrease)changeCart(target.dataset.cartDecrease,-1);
+    if(target.dataset.cartEdit)editCartItem(target.dataset.cartEdit);
     if(target.dataset.cartRemove){cart=cart.filter(item=>item.cartId!==target.dataset.cartRemove);saveCart();renderCart();}
+    if(target.dataset.authProvider)void startAuthProvider(target.dataset.authProvider);
+    if(target.dataset.removeAccountAddress!==undefined)removeAccountAddress(target.dataset.removeAccountAddress);
   });
   $('#open-cart').addEventListener('click',()=>openOverlay('#cart-overlay')); $('#mobile-cart').addEventListener('click',()=>openOverlay('#cart-overlay')); $('#close-cart').addEventListener('click',()=>closeOverlay('#cart-overlay'));
   $('#mobile-menu-toggle')?.addEventListener('click',toggleMobileMenu);
@@ -1014,22 +2205,44 @@ function bindEvents(){
   $$('.mobile-menu a').forEach(link=>link.addEventListener('click',closeMobileMenu));
   $$('[data-open-history]').forEach(button=>button.addEventListener('click',()=>{closeMobileMenu();openHistory();}));
   $('#favorites-btn')?.addEventListener('click',openFavorites);
-  $('#close-builder').addEventListener('click',()=>closeOverlay('#builder-overlay')); $('#close-combo').addEventListener('click',()=>closeOverlay('#combo-overlay')); $('#close-checkout').addEventListener('click',()=>closeOverlay('#checkout-overlay')); $('#close-history').addEventListener('click',()=>closeOverlay('#history-overlay')); $('#close-favorites').addEventListener('click',()=>closeOverlay('#favorites-overlay')); $('#close-search').addEventListener('click',()=>closeOverlay('#search-overlay'));
+  $('#close-builder').addEventListener('click',()=>closeOverlay('#builder-overlay')); $('#close-combo').addEventListener('click',()=>closeOverlay('#combo-overlay')); $('#close-checkout').addEventListener('click',()=>closeOverlay('#checkout-overlay')); $('#close-history').addEventListener('click',()=>closeOverlay('#history-overlay')); $('#close-favorites').addEventListener('click',()=>closeOverlay('#favorites-overlay')); $('#close-search').addEventListener('click',()=>closeOverlay('#search-overlay')); $('#close-save-order').addEventListener('click',()=>closeOverlay('#save-order-overlay')); $('#close-availability').addEventListener('click',()=>closeOverlay('#availability-overlay')); $('#close-bonus').addEventListener('click',closeBonusReveal); $('#close-taste-profile').addEventListener('click',()=>closeOverlay('#taste-profile-overlay'));
+  $('#close-payment-result')?.addEventListener('click',finishPaymentFollowup);
+  $('#payment-check')?.addEventListener('click',event=>{
+    if(event.currentTarget.dataset.paymentAction==='done')finishPaymentFollowup();
+    else void checkReturnedPayment();
+  });
+  $('#payment-retry')?.addEventListener('click',retryCanceledPayment);
   $('#checkout-btn').addEventListener('click',openCheckout); $('#save-favorite-btn').addEventListener('click',saveFavoriteFromCart); $('#add-combo-to-cart').addEventListener('click',addCombo); $('#add-builder-to-cart').addEventListener('click',addBuilder); $('#checkout-form').addEventListener('submit',completeCheckout); $('#order-history-btn').addEventListener('click',openHistory);
   $('#apply-promo').addEventListener('click',()=>applyPromo($('#promo-code').value));
   $('#promo-code').addEventListener('keydown',event=>{ if(event.key === 'Enter'){ event.preventDefault(); applyPromo(event.currentTarget.value); } });
   $('#checkout-promo').addEventListener('input',event=>applyPromo(event.currentTarget.value));
-  $('#account-form')?.addEventListener('submit', event=>{
+  $('#phone-request-form')?.addEventListener('submit',requestPhoneCode);
+  $('#phone-verify-form')?.addEventListener('submit',verifyPhoneCode);
+  $('#auth-change-phone')?.addEventListener('click',changeAuthPhone);
+  $('#auth-cancel-link')?.addEventListener('click',cancelLinkMethods);
+  $('#account-form')?.addEventListener('submit',saveAccountProfile);
+  $('#add-account-address')?.addEventListener('click',addAccountAddress);
+  $('#link-login-method')?.addEventListener('click',openLinkMethods);
+  $('#account-logout')?.addEventListener('click',()=>void logoutAccount());
+  $('#account-delete')?.addEventListener('click',()=>void deleteAccount());
+  $('#save-order-form')?.addEventListener('submit',event=>{
     event.preventDefault();
-    try {
-      saveProfile({ name:$('#account-name').value, phone:$('#account-phone').value });
-      renderAccount();
-      syncPromoInputs();
-      renderCart();
-      showToast('Профиль сохранен');
-    } catch (error) {
-      showToast(error.message);
-    }
+    savePendingOrder($('#save-order-name').value);
+  });
+  $('#add-drop-btn')?.addEventListener('click',addCurrentDrop);
+  $('#bonus-continue')?.addEventListener('click',closeBonusReveal);
+  $('#taste-profile-form')?.addEventListener('submit',saveTasteProfile);
+  $('#reset-taste-profile')?.addEventListener('click',()=>{if(window.confirm('Сбросить вкусовой профиль?'))resetTasteProfile();});
+  $('#repeat-available-btn')?.addEventListener('click',()=>{
+    if(pendingRepeatItems.length) restoreCart(pendingRepeatItems);
+  });
+  $('#find-replacement-btn')?.addEventListener('click',()=>{
+    cart = pendingRepeatItems.map(item=>({ ...makeCartItem(item), qty:item.qty || 1 }));
+    pendingRepeatItems = [];
+    saveCart();
+    renderCart();
+    closeOverlay('#availability-overlay');
+    openSearchModal();
   });
   $('#tracker-close')?.addEventListener('click',()=>{
     const order = currentActiveOrders()[0];
@@ -1039,16 +2252,14 @@ function bindEvents(){
     const order = currentActiveOrders()[0];
     if(order) dismissActiveOrder(order.id);
   });
-  $('#delivery-select').addEventListener('change',updateDeliveryFields);
+  $('#delivery-select').addEventListener('change',()=>{pendingCheckoutOrder=null;updateDeliveryFields();});
+  $('#payment-methods').addEventListener('change',()=>{pendingCheckoutOrder=null;renderPaymentConfig();});
   const phoneInput = $('#checkout-form input[name="phone"]');
   phoneInput.addEventListener('input',event=>{ event.currentTarget.setCustomValidity(''); });
   phoneInput.addEventListener('blur',event=>{
     if(isRussianMobilePhone(event.currentTarget.value)) event.currentTarget.value = formatRussianPhone(event.currentTarget.value);
   });
-  $('#account-phone')?.addEventListener('blur',event=>{
-    if(isRussianMobilePhone(event.currentTarget.value)) event.currentTarget.value = formatRussianPhone(event.currentTarget.value);
-  });
-  $('#open-search').addEventListener('click',()=>{renderSearch();openOverlay('#search-overlay');setTimeout(()=>$('#search-input').focus(),100)}); $('#search-input').addEventListener('input',e=>renderSearch(e.target.value));
+  $('#open-search').addEventListener('click',()=>openSearchModal()); $('#search-input').addEventListener('input',e=>renderSearch(e.target.value));
   $('#builder-form').addEventListener('change',()=>{readBuilder();renderBuilder();});
   $('#combo-form').addEventListener('change', event => {
     const input = event.target;
@@ -1059,8 +2270,8 @@ function bindEvents(){
     syncChoiceOptions($('#combo-form'));
     updateComboPrice();
   });
-  $$('.overlay').forEach(overlay=>overlay.addEventListener('click',e=>{if(e.target===overlay)closeOverlay('#'+overlay.id)}));
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMobileMenu();$$('.overlay.open').forEach(el=>closeOverlay('#'+el.id));}});
+  $$('.overlay').forEach(overlay=>overlay.addEventListener('click',e=>{if(e.target===overlay){if(overlay.id==='bonus-overlay')closeBonusReveal();else if(overlay.id==='payment-overlay')finishPaymentFollowup();else closeOverlay('#'+overlay.id);}}));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMobileMenu();if($('#bonus-overlay')?.classList.contains('open'))closeBonusReveal();if($('#payment-overlay')?.classList.contains('open'))finishPaymentFollowup();$$('.overlay.open').filter(el=>el.id!=='payment-overlay').forEach(el=>closeOverlay('#'+el.id));}});
 }
 function init(){
   renderCategories();
@@ -1075,6 +2286,12 @@ function init(){
   bindEvents();
   initHeroCarousel();
   startStatusPolling();
+  void hydrateAuth().finally(()=>{
+    void hydrateSavedOrders();
+    void hydrateEngagement();
+  });
+  void hydratePaymentConfig();
+  handlePaymentReturn();
   window.setInterval(updateStoreStatus, 60000);
 }
 init();

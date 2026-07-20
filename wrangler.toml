@@ -3,6 +3,9 @@ main = "_worker.js"
 compatibility_date = "2025-01-01"
 workers_dev = true
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 # Bind a Cloudflare D1 database as DB for customers, orders and live statuses.
 # ORDER_STATUS KV remains supported only as a temporary fallback.
 [[d1_databases]]
