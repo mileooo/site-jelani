@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="preload" as="image" href="images/hero-main.png" />
-  <link rel="stylesheet" href="style.css?v=20260718-1" />
+  <link rel="stylesheet" href="style.css?v=20260726-1" />
 </head>
 <body>
   <header class="site-header">
@@ -86,10 +86,6 @@
         <div class="hero-actions">
           <a class="primary-btn" href="#menu">Смотреть меню <span>→</span></a>
           <button class="ghost-btn" type="button" data-open-builder="shawarma">Собрать шаурму</button>
-        </div>
-        <div class="hero-meta">
-          <span>⚡ Готовим после заказа</span>
-          <span>🛍 Самовывоз и доставка</span>
         </div>
       </div>
 
@@ -325,6 +321,31 @@
     </section>
   </div>
 
+  <div class="overlay" id="product-overlay" aria-hidden="true">
+    <section class="choice-modal product-modal" role="dialog" aria-modal="true" aria-labelledby="product-title">
+      <div class="drawer-head"><div><p class="eyebrow" id="product-category">ПОДРОБНЕЕ О БЛЮДЕ</p><h2 id="product-title">Блюдо</h2></div><button class="icon-button" id="close-product" type="button">×</button></div>
+      <div class="product-detail">
+        <div class="product-detail__visual visual-orange" id="product-visual"><span id="product-emoji">🍽️</span></div>
+        <p class="product-detail__description" id="product-description"></p>
+        <section class="product-detail__section" aria-labelledby="product-composition-title">
+          <h3 id="product-composition-title">Состав</h3>
+          <div class="product-composition" id="product-composition"></div>
+        </section>
+        <section class="product-detail__section" aria-labelledby="product-nutrition-title">
+          <div class="product-detail__section-head"><h3 id="product-nutrition-title">КБЖУ на порцию</h3><span>ориентировочно</span></div>
+          <div class="nutrition-grid">
+            <div><strong id="product-kcal">0</strong><span>ккал</span></div>
+            <div><strong id="product-protein">0 г</strong><span>белки</span></div>
+            <div><strong id="product-fat">0 г</strong><span>жиры</span></div>
+            <div><strong id="product-carbs">0 г</strong><span>углеводы</span></div>
+          </div>
+          <p class="product-detail__note">Фактические значения могут меняться в зависимости от размера порции, выбранных соусов и добавок.</p>
+        </section>
+      </div>
+      <div class="product-detail__footer"><strong id="product-price">0 ₽</strong><button class="primary-btn" id="product-add" type="button">Добавить в корзину <span>→</span></button></div>
+    </section>
+  </div>
+
   <div class="overlay" id="checkout-overlay" aria-hidden="true">
     <section class="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
       <div class="drawer-head"><div><p class="eyebrow">ПОЧТИ ГОТОВО</p><h2 id="checkout-title">Оформление заказа</h2></div><button class="icon-button" id="close-checkout" type="button">×</button></div>
@@ -508,6 +529,6 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="script.js?v=20260718-1"></script>
+  <script src="script.js?v=20260725-2"></script>
 </body>
 </html>

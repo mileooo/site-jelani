@@ -1146,7 +1146,7 @@ async function handleTelegramAuth(request, env) {
   return jsonWithSession({ ok:true, profile:await accountProfile(env,userId) },request,token);
 }
 
-function maxWebAppEntries(initData) {
+function webAppEntries(initData) {
   const source = String(initData || '');
   if (!source || source.length > 20000) return [];
   const entries = [];
@@ -1167,12 +1167,75 @@ function maxWebAppEntries(initData) {
   return entries;
 }
 
-function maxCheckString(initData) {
-  return maxWebAppEntries(initData)
+function webAppCheckString(initData) {
+  return webAppEntries(initData)
     .filter(([key])=>key !== 'hash')
     .sort(([left],[right])=>left < right ? -1 : left > right ? 1 : 0)
     .map(([key,value])=>`${key}=${value}`)
     .join('\n');
+}
+
+function telegramWebAppEntries(initData) {
+  return webAppEntries(initData);
+}
+
+function telegramWebAppCheckString(initData) {
+  return webAppCheckString(initData);
+}
+
+function telegramWebAppUser(initData) {
+  const value = telegramWebAppEntries(initData).find(([key])=>key === 'user')?.[1] || '';
+  try { return JSON.parse(value); } catch { return null; }
+}
+
+async function verifyTelegramWebAppData(initData, botToken, nowSeconds = Math.floor(Date.now()/1000)) {
+  if (!botToken) return false;
+  const entries = telegramWebAppEntries(initData);
+  const hash = entries.find(([key])=>key === 'hash')?.[1] || '';
+  const authDate = Number(entries.find(([key])=>key === 'auth_date')?.[1]);
+  const user = telegramWebAppUser(initData);
+  const age = nowSeconds - authDate;
+  if (!/^[a-f0-9]{64}$/i.test(hash) || !user?.id || !Number.isFinite(age) || age < -60 || age > AUTH_PROVIDER_PAYLOAD_SECONDS) {
+    return false;
+  }
+  const encoder = new TextEncoder();
+  const secret = await hmacSha256Bytes(encoder.encode('WebAppData'),encoder.encode(botToken));
+  const expected = await hmacSha256Hex(secret,telegramWebAppCheckString(initData));
+  return constantTimeEqual(expected.toLowerCase(),hash.toLowerCase());
+}
+
+async function handleTelegramWebAppAuth(request, env) {
+  if (request.method !== 'POST') return json({ ok:false, error:'Method not allowed' },405);
+  if (!env.DB || !env.TELEGRAM_BOT_TOKEN) throw new ServiceUnavailableError('Вход через Telegram пока настраивается.');
+  await ensureDatabase(env);
+  const body = await request.json().catch(()=>({}));
+  const initData = String(body.initData || '');
+  if (!await verifyTelegramWebAppData(initData,env.TELEGRAM_BOT_TOKEN)) throw new ValidationError('Не удалось подтвердить вход через Telegram.');
+  const payload = telegramWebAppUser(initData);
+  const existingSession = await currentSession(request,env);
+  const name = [payload.first_name,payload.last_name].filter(Boolean).join(' ');
+  const userId = await resolveIdentityUser(env,'telegram',String(payload.id),{
+    name:sanitizeAccountName(name || payload.username),
+    avatarUrl:String(payload.photo_url || ''),
+    raw:{
+      id:String(payload.id),
+      username:String(payload.username || ''),
+      authDate:Number(telegramWebAppEntries(initData).find(([key])=>key === 'auth_date')?.[1] || 0),
+      source:'telegram_webapp'
+    }
+  },existingSession?.userId || '');
+  const deviceHash = await optionalDeviceTokenHash(request);
+  await attachDeviceDataToUser(env,deviceHash,userId);
+  const token = await createAuthSession(env,userId,deviceHash);
+  return jsonWithSession({ ok:true, profile:await accountProfile(env,userId) },request,token);
+}
+
+function maxWebAppEntries(initData) {
+  return webAppEntries(initData);
+}
+
+function maxCheckString(initData) {
+  return webAppCheckString(initData);
 }
 
 function maxWebAppUser(initData) {
@@ -1276,7 +1339,11 @@ function handleAuthConfig(request, env) {
     ok:true,
     providers:{
       phone:{ available:Boolean(env.SMSRU_API_ID || development) && String(env.AUTH_SECRET || '').length >= 32 },
-      telegram:{ available:Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_BOT_USERNAME), botUsername:String(env.TELEGRAM_BOT_USERNAME || '') },
+      telegram:{
+        available:Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_BOT_USERNAME),
+        botUsername:String(env.TELEGRAM_BOT_USERNAME || ''),
+        miniApp:Boolean(env.TELEGRAM_BOT_TOKEN)
+      },
       vk:{ available:Boolean(oauthProvider(env,'vk')?.available) },
       ok:{ available:Boolean(oauthProvider(env,'ok')?.available) },
       mail:{ available:Boolean(oauthProvider(env,'mail')?.available) },
@@ -3310,6 +3377,7 @@ async function handleHealth(env) {
     authProviders,
     phoneAuthConfigured: authProviders.phone,
     telegramAuthConfigured: authProviders.telegram,
+    telegramWebAppConfigured:Boolean(database && env.TELEGRAM_BOT_TOKEN),
     paymentProvider:paymentConfigured ? 'yookassa' : cashConfigured ? 'cash' : 'none',
     onlinePaymentConfigured:paymentConfigured,
     paymentMethods:[...(paymentConfigured ? paymentMethods : []),...(cashConfigured ? ['cash'] : [])],
@@ -3324,7 +3392,7 @@ async function handleHealth(env) {
   });
 }
 
-export { buildTasteProfileFromItems, bonusDiscountValue, maxCheckString, moneyKopecks, normalizeOAuthProfile, paymentAmountValue, priceOrder, sanitizeSavedItems, serverItemPrice, statusFromStep, telegramCheckString, telegramOperatorAllowed, verifyMaxWebAppData, verifyTelegramPayload, verifyYookassaPayment, yookassaPaymentPayload, yookassaReceiptItems };
+export { buildTasteProfileFromItems, bonusDiscountValue, maxCheckString, moneyKopecks, normalizeOAuthProfile, paymentAmountValue, priceOrder, sanitizeSavedItems, serverItemPrice, statusFromStep, telegramCheckString, telegramOperatorAllowed, telegramWebAppCheckString, verifyMaxWebAppData, verifyTelegramPayload, verifyTelegramWebAppData, verifyYookassaPayment, yookassaPaymentPayload, yookassaReceiptItems };
 
 export default {
   async fetch(request, env) {
@@ -3340,6 +3408,7 @@ export default {
       if (url.pathname === '/api/auth/phone/request') return await handlePhoneCodeRequest(request,env);
       if (url.pathname === '/api/auth/phone/verify') return await handlePhoneCodeVerify(request,env);
       if (url.pathname === '/api/auth/telegram') return await handleTelegramAuth(request,env);
+      if (url.pathname === '/api/auth/telegram-webapp') return await handleTelegramWebAppAuth(request,env);
       if (url.pathname === '/api/auth/max') return await handleMaxAuth(request,env);
       if (url.pathname === '/api/auth/oauth/start') return await handleOAuthStart(request,env);
       if (url.pathname.startsWith('/api/auth/oauth/callback/')) {

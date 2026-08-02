@@ -14,9 +14,11 @@ import worker, {
   serverItemPrice,
   statusFromStep,
   telegramCheckString,
-  verifyTelegramPayload,
   telegramOperatorAllowed,
+  telegramWebAppCheckString,
   verifyMaxWebAppData,
+  verifyTelegramPayload,
+  verifyTelegramWebAppData,
   verifyYookassaPayment,
   yookassaPaymentPayload,
   yookassaReceiptItems
@@ -76,6 +78,17 @@ async function signTelegramPayload(payload, botToken) {
   const key = await crypto.subtle.importKey('raw',secret,{ name:'HMAC',hash:'SHA-256' },false,['sign']);
   const signature = await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(telegramCheckString(payload)));
   return [...new Uint8Array(signature)].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+
+async function signTelegramWebAppData(payload, botToken) {
+  const unsigned = new URLSearchParams(Object.entries(payload).map(([key,value])=>[key,String(value)])).toString();
+  const encoder = new TextEncoder();
+  const firstKey = await crypto.subtle.importKey('raw',encoder.encode('WebAppData'),{ name:'HMAC',hash:'SHA-256' },false,['sign']);
+  const secret = await crypto.subtle.sign('HMAC',firstKey,encoder.encode(botToken));
+  const signatureKey = await crypto.subtle.importKey('raw',secret,{ name:'HMAC',hash:'SHA-256' },false,['sign']);
+  const signature = await crypto.subtle.sign('HMAC',signatureKey,encoder.encode(telegramWebAppCheckString(unsigned)));
+  const hash = [...new Uint8Array(signature)].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+  return `${unsigned}&hash=${hash}`;
 }
 
 async function signMaxWebAppData(payload, botToken) {
@@ -238,6 +251,7 @@ test('auth config exposes availability without provider secrets', async () => {
   const body = await response.json();
   assert.equal(body.providers.phone.available,true);
   assert.equal(body.providers.telegram.available,true);
+  assert.equal(body.providers.telegram.miniApp,true);
   assert.equal(body.providers.vk.available,true);
   assert.equal(body.providers.ok.available,true);
   assert.equal(body.providers.mail.available,true);
@@ -338,6 +352,35 @@ test('verified phone profile links an additional social identity without duplica
     assert.equal(Number(d1.value('SELECT COUNT(*) AS count FROM auth_identities').count),2);
   } finally {
     globalThis.fetch=originalFetch;
+    d1.close();
+  }
+});
+
+test('Telegram WebApp initData is signed, expires and creates a server session', async () => {
+  const d1=new TestD1();
+  try {
+    const now=Math.floor(Date.now()/1000);
+    const botToken='123456:telegram-webapp-token';
+    const initData=await signTelegramWebAppData({
+      auth_date:now,
+      query_id:'telegram-query-1',
+      user:JSON.stringify({ id:4242,first_name:'Emil',last_name:'JELANI',username:'jelaniuser',photo_url:'https://example.ru/avatar.jpg' })
+    },botToken);
+    assert.equal(await verifyTelegramWebAppData(initData,botToken,now),true);
+    assert.equal(await verifyTelegramWebAppData(initData,botToken,now+700),false);
+    assert.equal(await verifyTelegramWebAppData(initData.replace('telegram-query-1','telegram-query-2'),botToken,now),false);
+
+    const response=await worker.fetch(new Request('https://jjelani.ru/api/auth/telegram-webapp',{
+      method:'POST',
+      headers:{ 'content-type':'application/json','x-device-token':'c'.repeat(64) },
+      body:JSON.stringify({ initData })
+    }),{ DB:d1,TELEGRAM_BOT_TOKEN:botToken });
+    assert.equal(response.status,200);
+    const body=await response.json();
+    assert.equal(body.profile.name,'Emil JELANI');
+    assert.deepEqual(body.profile.loginMethods,['telegram']);
+    assert.match(String(response.headers.get('set-cookie')||''),/HttpOnly/);
+  } finally {
     d1.close();
   }
 });
@@ -456,6 +499,7 @@ test('health reports configured auth providers and online payment readiness', as
     const body=await response.json();
     assert.equal(body.database,true);
     assert.deepEqual(body.authProviders,{ phone:true,telegram:true,vk:true,ok:true,mail:true,max:true });
+    assert.equal(body.telegramWebAppConfigured,true);
     assert.equal(body.onlinePaymentConfigured,true);
     assert.equal(body.paymentProvider,'yookassa');
     assert.deepEqual(body.paymentMethods,['bank_card','sbp','cash']);

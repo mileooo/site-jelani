@@ -94,7 +94,9 @@ DB
 
 ## Авторизация
 
-Сессия хранится в `HttpOnly` cookie, а личные данные и способы входа — в D1. Задайте `AUTH_SECRET` длиной не менее 32 символов. Для SMS нужен ключ `SMSRU_API_ID`; на localhost код возвращается только при `DEVELOPMENT_MODE=true`. На боевом домене код никогда не попадает в ответ API. Telegram использует `TELEGRAM_BOT_TOKEN` и имя бота из `TELEGRAM_BOT_USERNAME`. Для Telegram Login Widget домен `jjelani.ru` должен быть привязан к боту через BotFather (`/setdomain`).
+Сессия хранится в `HttpOnly` cookie, а личные данные и способы входа — в D1. Задайте `AUTH_SECRET` длиной не менее 32 символов. Для SMS нужен ключ `SMSRU_API_ID`; на localhost код возвращается только при `DEVELOPMENT_MODE=true`. На боевом домене код никогда не попадает в ответ API. Telegram Mini App использует `TELEGRAM_BOT_TOKEN`; `TELEGRAM_BOT_USERNAME` дополнительно нужен для Telegram Login Widget на обычном сайте. Для Login Widget домен `jjelani.ru` должен быть привязан к боту через BotFather (`/setdomain`).
+
+Чтобы включить Telegram Mini App, откройте в BotFather `/mybots`, выберите бота, затем `Bot Settings -> Configure Mini App -> Enable Mini App` и укажите `https://jjelani.ru/` как Web App URL. При запуске внутри Telegram клиент автоматически передаёт `initData` на `/api/auth/telegram-webapp`; Worker проверяет подпись и срок данных с помощью токена бота до создания серверной сессии. Токен никогда не передаётся в браузер.
 
 Для VK, Одноклассников и Mail.ru создайте приложения и добавьте точные callback-адреса:
 
@@ -117,6 +119,7 @@ GET          /api/auth/config
 POST         /api/auth/phone/request
 POST         /api/auth/phone/verify
 POST         /api/auth/telegram
+POST         /api/auth/telegram-webapp
 POST         /api/auth/max
 GET          /api/auth/oauth/start
 GET          /api/auth/oauth/callback/{provider}

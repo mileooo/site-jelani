@@ -111,6 +111,95 @@ const sets = [
   { id:'sweet-table', name:'Сет «Сладкий стол»', size:'НА КОМПАНИЮ', description:'Венские вафли, сырники, пахлава с мороженым, Наполеон, медовик, пончики и чай/кофе.', price:1190, emoji:'🍩' }
 ];
 
+const PRODUCT_NUTRITION = {
+  burger:[640,31,34,54],
+  'shawarma-small-chicken':[430,24,18,43],
+  'shawarma-small-beef':[480,25,23,42],
+  'shawarma-standard-chicken':[570,31,24,54],
+  'shawarma-standard-beef':[630,33,29,53],
+  'shawarma-large-chicken':[710,39,30,68],
+  'shawarma-large-beef':[780,42,36,66],
+  'doner-chicken':[520,30,21,51],
+  'doner-beef':[590,32,27,50],
+  gyros:[620,29,28,65],
+  pita:[510,28,20,55],
+  'open-shawarma':[720,39,31,72],
+  quesadilla:[650,32,34,52],
+  'sandwich-chicken':[470,26,19,48],
+  'sandwich-ham':[450,22,20,44],
+  'fried-sandwich':[520,21,28,43],
+  'american-sandwich':[680,30,36,58],
+  'cross-sandwich-chicken':[540,29,24,52],
+  'cross-sandwich-ham':[510,25,25,48],
+  'ciabatta-sandwich':[590,28,25,65],
+  'fried-toasties':[430,18,22,42],
+  hotdog:[470,18,24,45],
+  fries:[330,4,16,43],
+  nuggets:[360,22,21,25],
+  'onion-rings':[310,5,16,36],
+  wings:[520,38,36,10],
+  'garlic-croutons':[360,9,18,43],
+  'fish-nuggets':[340,18,18,30],
+  'caesar-salad':[390,27,25,18],
+  'caucasian-salad':[170,4,12,13],
+  'big-hit-salad':[430,28,29,17],
+  'chips-salad':[410,10,29,30],
+  'vienna-waffle':[420,8,19,55],
+  syrniki:[390,20,19,38],
+  'baklava-icecream':[520,9,28,60],
+  napoleon:[430,6,28,43],
+  medovik:[410,7,24,48],
+  donuts:[360,6,19,43],
+  smoothie:[190,3,2,42],
+  milkshake:[360,9,14,49],
+  soda:[210,0,0,52],
+  juice:[180,1,0,44],
+  tea:[5,0,0,1],
+  coffee:[120,6,6,12]
+};
+
+const SET_NUTRITION = {
+  duet:[2380,98,105,255],
+  'burger-pair':[2510,106,132,226],
+  'sandwich-box':[2670,128,119,284],
+  east:[2540,120,112,270],
+  crispy:[2860,142,166,204],
+  family:[4130,190,213,395],
+  'salad-lunch':[1160,63,74,75],
+  'sweet-table':[2590,55,139,301]
+};
+
+const SAUCE_NUTRITION = [
+  [35,1,0,8], [110,1,10,3], [25,1,0,5], [130,1,13,4], [90,1,8,4],
+  [45,1,0,10], [120,3,10,4], [70,0,0,17], [55,2,4,3], [85,0,0,21]
+];
+
+const CATEGORY_NUTRITION = {
+  burgers:[600,28,31,52],
+  shawarma:[580,31,25,57],
+  sandwiches:[510,24,24,49],
+  snacks:[360,18,20,30],
+  salads:[320,18,21,17],
+  desserts:[410,9,22,48],
+  drinks:[160,3,3,31],
+  sauces:[80,1,7,6]
+};
+
+const PRODUCT_COMPOSITION = {
+  smoothie:['Фруктовое пюре','Фруктовый сок','Лёд'],
+  milkshake:['Молоко','Мороженое','Сироп'],
+  soda:['Газированный напиток','Лёд'],
+  juice:['Фруктовый сок'],
+  tea:['Чай','Вода'],
+  coffee:['Кофе','Вода или молоко'],
+  fries:['Картофель','Растительное масло','Соль'],
+  nuggets:['Куриное филе','Панировка','Специи'],
+  'onion-rings':['Лук','Панировка','Специи'],
+  wings:['Куриные крылья','Маринад','Специи'],
+  'garlic-croutons':['Хлеб','Чеснок','Растительное масло','Соус'],
+  'fish-nuggets':['Рыбное филе','Панировка','Специи']
+};
+
 const builderBase = {
   shawarma: {
     title: 'Собери свою шаурму', icon: '🌯', label: 'Шаурма',
@@ -137,6 +226,7 @@ let currentComboCategory = 'all';
 let activeSearchFilter = '';
 let currentBuilderType = 'shawarma';
 let currentCombo = null;
+let currentProductDetail = null;
 let builderState = null;
 let orderStatusTimer = null;
 let checkoutSubmitting = false;
@@ -334,6 +424,13 @@ function renderTelegramLogin(){
   const slot=$('#telegram-login-slot');
   if(!slot)return;
   const telegram=authState.config?.providers?.telegram;
+  if(isTelegramWebAppContext()){
+    const available=Boolean(telegram?.miniApp);
+    slot.dataset.ready=available?'telegram-webapp':'';
+    slot.innerHTML=`<button type="button" ${available?'':'disabled title="Вход через Telegram пока настраивается"'}><b>TG</b><span>Telegram</span></button>`;
+    slot.querySelector('button')?.addEventListener('click',()=>startTelegramWebAppAuth({manual:true}));
+    return;
+  }
   if(!telegram?.available||!telegram.botUsername){
     slot.dataset.ready='';
     slot.innerHTML='<button type="button" disabled title="Способ входа пока настраивается"><b>TG</b><span>Telegram</span></button>';
@@ -405,6 +502,7 @@ async function hydrateAuth(){
     renderAccount();
   }
   renderAuthProviders();
+  void startTelegramWebAppAuth();
   const params=new URLSearchParams(location.search);
   const authResult=params.get('auth');
   if(authResult){
@@ -467,6 +565,125 @@ window.onTelegramAuth=async user=>{
     showToast(linking?'Telegram добавлен':'Вход через Telegram выполнен');
   }catch(error){setAuthMessage(error.message,true);showToast(error.message);}
 };
+
+let telegramBridgePromise;
+let telegramWebAppReady=false;
+let telegramWebAppAuthAttempted=false;
+let telegramWebAppAuthPromise=null;
+
+function telegramLaunchParam(name){
+  const sources=[location.hash.slice(1),location.search.slice(1)];
+  for(const source of sources){
+    if(!source)continue;
+    try{
+      const value=new URLSearchParams(source).get(name);
+      if(value)return value;
+    }catch{}
+  }
+  return '';
+}
+
+function telegramWebAppInitData(){
+  const app=window.Telegram?.WebApp;
+  if(typeof app?.initData==='string'&&app.initData)return app.initData;
+  return telegramLaunchParam('tgWebAppData');
+}
+
+function isTelegramWebAppContext(){
+  return Boolean(
+    telegramWebAppInitData()||
+    telegramLaunchParam('tgWebAppVersion')||
+    telegramLaunchParam('tgWebAppPlatform')||
+    window.Telegram?.WebApp?.initData
+  );
+}
+
+function loadTelegramBridge(){
+  if(window.Telegram?.WebApp)return Promise.resolve(window.Telegram.WebApp);
+  if(telegramBridgePromise)return telegramBridgePromise;
+  telegramBridgePromise=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src='https://telegram.org/js/telegram-web-app.js';
+    script.async=true;
+    script.onload=()=>resolve(window.Telegram?.WebApp||null);
+    script.onerror=()=>reject(new Error('Не удалось открыть вход через Telegram.'));
+    document.head.append(script);
+  });
+  return telegramBridgePromise;
+}
+
+function validTelegramColor(value){
+  return /^#[0-9a-f]{6}$/i.test(String(value||''));
+}
+
+function applyTelegramWebAppTheme(app){
+  document.body.classList.add('telegram-webapp');
+  const root=document.documentElement;
+  const theme=app?.themeParams||{};
+  if(validTelegramColor(theme.bg_color))root.style.setProperty('--tg-bg',theme.bg_color);
+  if(validTelegramColor(theme.text_color))root.style.setProperty('--tg-text',theme.text_color);
+  if(validTelegramColor(theme.button_color))root.style.setProperty('--tg-button',theme.button_color);
+  if(validTelegramColor(theme.button_text_color))root.style.setProperty('--tg-button-text',theme.button_text_color);
+  try{
+    if(app?.setHeaderColor)app.setHeaderColor(validTelegramColor(theme.bg_color)?theme.bg_color:'#f8f3e8');
+    if(app?.setBackgroundColor)app.setBackgroundColor(validTelegramColor(theme.bg_color)?theme.bg_color:'#f8f3e8');
+  }catch{}
+}
+
+function updateTelegramViewport(app){
+  const height=Number(app?.viewportStableHeight||app?.viewportHeight||0);
+  if(height>0)document.documentElement.style.setProperty('--tg-viewport-height',`${height}px`);
+}
+
+async function prepareTelegramWebApp(){
+  if(!isTelegramWebAppContext())return null;
+  document.body.classList.add('telegram-webapp');
+  const app=await loadTelegramBridge().catch(()=>null);
+  if(!app)return null;
+  applyTelegramWebAppTheme(app);
+  updateTelegramViewport(app);
+  if(!telegramWebAppReady){
+    telegramWebAppReady=true;
+    try{app.ready?.();app.expand?.();}catch{}
+    try{app.onEvent?.('themeChanged',()=>applyTelegramWebAppTheme(app));}catch{}
+    try{app.onEvent?.('viewportChanged',()=>updateTelegramViewport(app));}catch{}
+  }
+  return app;
+}
+
+async function startTelegramWebAppAuth({manual=false}={}){
+  if(telegramWebAppAuthPromise)return telegramWebAppAuthPromise;
+  telegramWebAppAuthPromise=(async()=>{
+    await prepareTelegramWebApp();
+    const initData=telegramWebAppInitData();
+    const miniAppAvailable=Boolean(authState.config?.providers?.telegram?.miniApp);
+    const alreadyLinked=Boolean(authState.profile?.loginMethods?.includes('telegram'));
+    if(!miniAppAvailable){
+      if(manual)throw new Error('Вход через Telegram пока настраивается.');
+      return false;
+    }
+    if(!initData){
+      if(manual)throw new Error('Вход через Telegram доступен при открытии сайта из Telegram Mini App.');
+      return false;
+    }
+    if(authState.authenticated&&alreadyLinked&&!authState.linking)return false;
+    if(telegramWebAppAuthAttempted&&!manual)return false;
+    telegramWebAppAuthAttempted=true;
+    const linking=authState.authenticated||authState.linking;
+    const data=await apiRequest('/api/auth/telegram-webapp',{method:'POST',body:{initData}});
+    applyAuthPayload({...data,authenticated:true});
+    await Promise.all([hydrateSavedOrders(),hydrateEngagement()]);
+    showToast(linking?'Telegram добавлен':'Вход через Telegram выполнен');
+    return true;
+  })().catch(error=>{
+    if(manual||isTelegramWebAppContext()){
+      setAuthMessage(error.message,true);
+      showToast(error.message);
+    }
+    return false;
+  }).finally(()=>{telegramWebAppAuthPromise=null;});
+  return telegramWebAppAuthPromise;
+}
 
 async function startOAuth(provider){
   try{
@@ -1122,8 +1339,9 @@ function comboCardTemplate(item){
 function cardTemplate(item, type='menu'){
   const action = type==='combo' ? `data-combo="${item.id}"` : type==='set' ? `data-set="${item.id}"` : `data-add="${item.id}"`;
   const label = type==='combo' ? 'Выбрать' : type==='set' ? 'В корзину' : 'В корзину';
-  if(type==='set') return `<article class="set-card"><span class="set-size">${item.size}</span><h3>${item.name}</h3><p>${item.description}</p><div class="set-price">${formatPrice(item.price)}</div><button type="button" ${action} aria-label="${label}">+</button></article>`;
-  return `<article class="food-card ${type==='menu'?'menu-card':''}">
+  if(type==='set') return `<article class="set-card product-card"><button class="card-details-hit" type="button" data-product-detail="set:${item.id}" aria-label="Подробнее о ${esc(item.name)}"></button><span class="set-size">${item.size}</span><h3>${item.name}</h3><p>${item.description}</p><div class="set-price">${formatPrice(item.price)}</div><button class="set-card-add" type="button" ${action} aria-label="${label}">+</button></article>`;
+  return `<article class="food-card product-card ${type==='menu'?'menu-card':''}">
+    <button class="card-details-hit" type="button" data-product-detail="menu:${item.id}" aria-label="Подробнее о ${esc(item.name)}"></button>
     <div class="food-card__visual ${visualClass(item.visual)}"><span>${item.emoji}</span>${type==='combo'?'<span class="food-card__badge">ВЫБОР ВНУТРИ</span>':''}</div>
     <div class="food-card__body"><h3 class="food-card__title">${item.name}</h3><p class="food-card__desc">${item.description}</p><div class="food-card__footer"><strong class="price">${formatPrice(item.price)}</strong><button class="card-add" type="button" ${action} aria-label="${label}" title="${label}">+</button></div></div>
   </article>`;
@@ -1141,6 +1359,70 @@ function renderMenu(){
 function findMenuItem(id){ return menuItems.find(item=>item.id===id); }
 function findCombo(id){ return combos.find(item=>item.id===id); }
 function findSet(id){ return sets.find(item=>item.id===id); }
+
+function productComposition(item, type){
+  if(type === 'set') return item.description.replace(/\.$/,'').split(/,\s*|\s+и\s+/).filter(Boolean);
+  if(item.category === 'sauces'){
+    return [item.name.replace(/^Соус\s+/,''), 'Порция 30 г'];
+  }
+  if(PRODUCT_COMPOSITION[item.id]) return PRODUCT_COMPOSITION[item.id];
+  const description = item.description.replace(/\.$/,'');
+  const source = description.includes(':') ? description.slice(description.indexOf(':') + 1).trim() : description;
+  return source.split(/,\s*|\s+и\s+/).map(part=>part.trim()).filter(Boolean).slice(0,8);
+}
+
+function productNutrition(item, type){
+  let values;
+  if(type === 'set') values = SET_NUTRITION[item.id];
+  else if(item.category === 'sauces') values = SAUCE_NUTRITION[Number(item.id.replace('sauce-',''))];
+  else values = PRODUCT_NUTRITION[item.id] || CATEGORY_NUTRITION[item.category];
+  const [kcal=0,protein=0,fat=0,carbs=0] = values || [];
+  return { kcal,protein,fat,carbs };
+}
+
+function openProductDetail(reference){
+  const [type,id] = String(reference || '').split(':');
+  if(type === 'combo'){
+    openCombo(id);
+    return;
+  }
+  const item = type === 'set' ? findSet(id) : findMenuItem(id);
+  if(!item) return;
+
+  currentProductDetail = { type,item };
+  const category = type === 'set' ? 'СЕТ JELANI' : (categoryMeta.find(entry=>entry.id===item.category)?.label || 'МЕНЮ JELANI').toUpperCase();
+  const nutrition = productNutrition(item,type);
+  const setIndex = type === 'set' ? Math.max(0,sets.findIndex(entry=>entry.id===item.id)) : 0;
+  const visual = item.visual || ['orange','green','pink','yellow','dark'][setIndex % 5];
+
+  $('#product-category').textContent = category;
+  $('#product-title').textContent = item.name;
+  $('#product-description').textContent = item.description;
+  $('#product-visual').className = `product-detail__visual ${visualClass(visual)}`;
+  $('#product-emoji').textContent = item.emoji || '🍽️';
+  $('#product-composition').innerHTML = productComposition(item,type).map(part=>`<span>${esc(part)}</span>`).join('');
+  $('#product-nutrition-title').textContent = type === 'set' ? 'КБЖУ всего набора' : 'КБЖУ на порцию';
+  $('#product-kcal').textContent = nutrition.kcal;
+  $('#product-protein').textContent = `${nutrition.protein} г`;
+  $('#product-fat').textContent = `${nutrition.fat} г`;
+  $('#product-carbs').textContent = `${nutrition.carbs} г`;
+  $('#product-price').textContent = formatPrice(item.price);
+  openOverlay('#product-overlay');
+}
+
+function addProductDetail(){
+  if(!currentProductDetail) return;
+  const { type,item } = currentProductDetail;
+  addCart(makeCartItem({
+    id:item.id,
+    name:item.name,
+    price:item.price,
+    emoji:item.emoji,
+    details:type === 'set' ? item.size : ''
+  }));
+  closeOverlay('#product-overlay');
+}
+
 function makeCartItem({ id, name, price, emoji, details='', options=null }){ return { cartId:`${id}-${Date.now()}-${Math.random().toString(16).slice(2)}`, id, name, price, emoji, details, options, qty:1 }; }
 function addCart(item){ cart.push(item); saveCart(); renderCart(); showToast('Добавлено в корзину'); }
 function optionList(value){ return Array.isArray(value) ? value : value ? [value] : []; }
@@ -1247,7 +1529,8 @@ function quickOrderCard(ref){
   const item = ref.type === 'menu' ? findMenuItem(ref.id) : ref.type === 'combo' ? findCombo(ref.id) : findSet(ref.id);
   if(!item) return '';
   const description = ref.type === 'combo' ? item.composition.join(' · ') : item.description;
-  return `<article class="quick-order-card">
+  return `<article class="quick-order-card product-card">
+    <button class="card-details-hit" type="button" data-product-detail="${ref.type}:${item.id}" aria-label="Подробнее о ${esc(item.name)}"></button>
     <div class="quick-order-card__icon" aria-hidden="true">${item.emoji}</div>
     <div class="quick-order-card__body">
       <h3>${esc(item.name)}</h3>
@@ -2075,7 +2358,7 @@ function renderSearch(query=''){
   $('#search-results').innerHTML=list.length?list.map(item=>{
     const meta = item.type === 'combo' ? 'Комбо' : item.type === 'set' ? 'Сет' : (categoryMeta.find(x=>x.id===item.category)?.label||'');
     const action = item.type === 'combo' ? `data-combo="${item.id}"` : item.type === 'set' ? `data-set="${item.id}"` : `data-add="${item.id}"`;
-    return `<article class="search-item"><div class="search-item__main"><div class="search-item__icon">${item.emoji}</div><div><div class="search-item__name">${item.name}</div><div class="search-item__category">${meta} · ${formatPrice(item.price)}</div></div></div><button type="button" ${action}>+</button></article>`;
+    return `<article class="search-item product-card"><button class="card-details-hit" type="button" data-product-detail="${item.type}:${item.id}" aria-label="Подробнее о ${esc(item.name)}"></button><div class="search-item__main"><div class="search-item__icon">${item.emoji}</div><div><div class="search-item__name">${item.name}</div><div class="search-item__category">${meta} · ${formatPrice(item.price)}</div></div></div><button class="search-item__add" type="button" ${action}>+</button></article>`;
   }).join(''):'<div class="history-empty">Ничего не нашли. Попробуй другое слово или фильтр.</div>';
 }
 
@@ -2161,10 +2444,11 @@ function bindEvents(){
   });
 
   document.addEventListener('click',event=>{
-    const target=event.target.closest('button,[data-open-builder],[data-combo],[data-quick-combo],[data-add],[data-set],[data-category],[data-hero-slide]'); if(!target)return;
+    const target=event.target.closest('button,[data-open-builder],[data-combo],[data-quick-combo],[data-add],[data-set],[data-product-detail],[data-category],[data-hero-slide]'); if(!target)return;
     if(target.dataset.heroSlide !== undefined){ setHeroSlide(target.dataset.heroSlide); startHeroCarousel(); }
     if(target.dataset.openCart !== undefined) openOverlay('#cart-overlay');
     if(target.dataset.openBuilder) openBuilder(target.dataset.openBuilder);
+    if(target.dataset.productDetail) openProductDetail(target.dataset.productDetail);
     if(target.dataset.combo) openCombo(target.dataset.combo);
     if(target.dataset.quickCombo) openCombo(target.dataset.quickCombo);
     if(target.dataset.comboCategory){currentComboCategory=target.dataset.comboCategory;renderCombos();}
@@ -2205,7 +2489,7 @@ function bindEvents(){
   $$('.mobile-menu a').forEach(link=>link.addEventListener('click',closeMobileMenu));
   $$('[data-open-history]').forEach(button=>button.addEventListener('click',()=>{closeMobileMenu();openHistory();}));
   $('#favorites-btn')?.addEventListener('click',openFavorites);
-  $('#close-builder').addEventListener('click',()=>closeOverlay('#builder-overlay')); $('#close-combo').addEventListener('click',()=>closeOverlay('#combo-overlay')); $('#close-checkout').addEventListener('click',()=>closeOverlay('#checkout-overlay')); $('#close-history').addEventListener('click',()=>closeOverlay('#history-overlay')); $('#close-favorites').addEventListener('click',()=>closeOverlay('#favorites-overlay')); $('#close-search').addEventListener('click',()=>closeOverlay('#search-overlay')); $('#close-save-order').addEventListener('click',()=>closeOverlay('#save-order-overlay')); $('#close-availability').addEventListener('click',()=>closeOverlay('#availability-overlay')); $('#close-bonus').addEventListener('click',closeBonusReveal); $('#close-taste-profile').addEventListener('click',()=>closeOverlay('#taste-profile-overlay'));
+  $('#close-builder').addEventListener('click',()=>closeOverlay('#builder-overlay')); $('#close-combo').addEventListener('click',()=>closeOverlay('#combo-overlay')); $('#close-product').addEventListener('click',()=>closeOverlay('#product-overlay')); $('#close-checkout').addEventListener('click',()=>closeOverlay('#checkout-overlay')); $('#close-history').addEventListener('click',()=>closeOverlay('#history-overlay')); $('#close-favorites').addEventListener('click',()=>closeOverlay('#favorites-overlay')); $('#close-search').addEventListener('click',()=>closeOverlay('#search-overlay')); $('#close-save-order').addEventListener('click',()=>closeOverlay('#save-order-overlay')); $('#close-availability').addEventListener('click',()=>closeOverlay('#availability-overlay')); $('#close-bonus').addEventListener('click',closeBonusReveal); $('#close-taste-profile').addEventListener('click',()=>closeOverlay('#taste-profile-overlay'));
   $('#close-payment-result')?.addEventListener('click',finishPaymentFollowup);
   $('#payment-check')?.addEventListener('click',event=>{
     if(event.currentTarget.dataset.paymentAction==='done')finishPaymentFollowup();
@@ -2213,6 +2497,7 @@ function bindEvents(){
   });
   $('#payment-retry')?.addEventListener('click',retryCanceledPayment);
   $('#checkout-btn').addEventListener('click',openCheckout); $('#save-favorite-btn').addEventListener('click',saveFavoriteFromCart); $('#add-combo-to-cart').addEventListener('click',addCombo); $('#add-builder-to-cart').addEventListener('click',addBuilder); $('#checkout-form').addEventListener('submit',completeCheckout); $('#order-history-btn').addEventListener('click',openHistory);
+  $('#product-add').addEventListener('click',addProductDetail);
   $('#apply-promo').addEventListener('click',()=>applyPromo($('#promo-code').value));
   $('#promo-code').addEventListener('keydown',event=>{ if(event.key === 'Enter'){ event.preventDefault(); applyPromo(event.currentTarget.value); } });
   $('#checkout-promo').addEventListener('input',event=>applyPromo(event.currentTarget.value));
@@ -2274,6 +2559,7 @@ function bindEvents(){
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMobileMenu();if($('#bonus-overlay')?.classList.contains('open'))closeBonusReveal();if($('#payment-overlay')?.classList.contains('open'))finishPaymentFollowup();$$('.overlay.open').filter(el=>el.id!=='payment-overlay').forEach(el=>closeOverlay('#'+el.id));}});
 }
 function init(){
+  void prepareTelegramWebApp();
   renderCategories();
   renderCombos();
   renderSets();
