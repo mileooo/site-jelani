@@ -1,26 +1,28 @@
 const RUB = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 });
 const formatPrice = value => RUB.format(value);
+const DELIVERY_MINIMUM = 579;
+const DELIVERY_FEE = 149;
+const OFFER_VERSION = '2026-08-23';
+const PERSONAL_DATA_CONSENT_VERSION = '2026-08-31';
 
 const sauces = [
-  'Томатный', 'Чесночный', 'Аджика', '1000 островов', 'Кавказский',
-  'Чили', 'Сырный', 'Кисло-сладкий', 'Мацони', 'Наршараб'
+  'Сырный', 'Чесночный', 'Барбекю', 'Кетчуп', 'Бургер', 'Острый'
 ];
 
-const drinks = ['Смузи', 'Коктейль', 'Газировка', 'Сок', 'Чай', 'Кофе'];
+const drinks = ['Напиток 0,3 л', 'Напиток 0,4 л'];
 
 const categoryMeta = [
   { id: 'all', label: 'Всё меню' },
-  { id: 'burgers', label: 'Бургеры' },
-  { id: 'shawarma', label: 'Шаурма и донер' },
-  { id: 'sandwiches', label: 'Сэндвичи и хот-доги' },
+  { id: 'fastfood', label: 'Фаст-фуд' },
+  { id: 'pancakes', label: 'Блинчики' },
+  { id: 'sandwiches', label: 'Сэндвичи' },
   { id: 'snacks', label: 'Закуски' },
-  { id: 'salads', label: 'Салаты' },
   { id: 'desserts', label: 'Десерты' },
   { id: 'drinks', label: 'Напитки' },
   { id: 'sauces', label: 'Соусы' }
 ];
 
-const menuItems = [
+const legacyMenuItems = [
   { id:'burger', category:'burgers', name:'Бургер', description:'Сочная котлета, сыр, салат, томаты, огурчики и фирменный соус.', price:270, emoji:'🍔', visual:'orange', tags:['бургер','говядина','хит'] },
 
   { id:'shawarma-small-chicken', category:'shawarma', name:'Шаурма маленькая с курицей', description:'Курица, свежие овощи и 1-2 соуса на выбор.', price:190, emoji:'🌯', visual:'orange', tags:['шаурма','курица'] },
@@ -76,16 +78,10 @@ const menuItems = [
 ];
 
 const comboCategories = [
-  { id:'all', label:'Все' },
-  { id:'shawarma', label:'Шаурма и донер' },
-  { id:'burgers', label:'Бургеры и сэндвичи' },
-  { id:'chicken', label:'Курица' },
-  { id:'fish', label:'Рыба' },
-  { id:'morning', label:'Завтрак' },
-  { id:'duo', label:'На двоих' }
+  { id:'all', label:'Все комбо' }
 ];
 
-const combos = [
+const legacyCombos = [
   { id:'shawarma-combo', categories:['shawarma','chicken'], name:'Шаурма Комбо', description:'Шаурма, хрустящий фри, напиток и соусы на выбор.', price:410, sizes:[{name:'Стандартный',price:410},{name:'Большой',price:490}], saving:85, badge:'ХИТ', image:'images/hero-main.png', emoji:'🌯', flags:['meat','drink','shawarmaSauces','friesSauce'], composition:['Шаурма','Фри','Напиток','Соусы в шаурму','Соус к фри'] },
   { id:'burger-combo', categories:['burgers'], name:'Бургер Комбо', description:'Фирменный бургер, картофель фри, напиток и соус к фри.', price:430, sizes:[{name:'Стандартный',price:430},{name:'Большой',price:510}], saving:75, badge:'ХИТ', image:'images/hero-slide-2.png', emoji:'🍔', flags:['drink','sauce'], sauceLabel:'Соус к картофелю фри — выберите один', composition:['Бургер','Фри','Напиток','Соус к фри'] },
   { id:'doner-combo', categories:['shawarma','chicken'], name:'Донер Комбо', description:'Донер с мясом на выбор, фри, напиток и соус к фри.', price:410, sizes:[{name:'Стандартный',price:410},{name:'Большой',price:490}], saving:80, image:'images/hero-slide-3.png', emoji:'🥙', flags:['meat','drink','sauce'], sauceLabel:'Соус к картофелю фри — выберите один', composition:['Донер','Фри','Напиток','Соус к фри'] },
@@ -100,7 +96,7 @@ const combos = [
   { id:'mega-combo', categories:['duo','shawarma','chicken'], name:'Мега Комбо на двоих', description:'Две шаурмы, большая порция фри, два напитка и два соуса.', price:890, sizes:[{name:'На двоих',price:890}], saving:170, badge:'НА ДВОИХ', image:'images/hero-slide-1.png', emoji:'🌯', flags:['meat','drink','twoSauces'], composition:['2 шаурмы','Большая фри','2 напитка','2 соуса'] }
 ];
 
-const sets = [
+const legacySets = [
   { id:'duet', name:'Сет «Дуэт»', size:'НА ДВОИХ', description:'2 стандартные шаурмы, большая фри, наггетсы, 2 напитка и 2 соуса.', price:890, emoji:'🌯' },
   { id:'burger-pair', name:'Сет «Бургер Пара»', size:'НА ДВОИХ', description:'2 бургера, фри, луковые кольца, 2 напитка и 2 соуса.', price:960, emoji:'🍔' },
   { id:'sandwich-box', name:'Сет «Сэндвич Бокс»', size:'НА 3-4', description:'Сэндвич с курицей, сэндвич с ветчиной, американский сэндвич, чиабатта-сэндвич, фри и напитки.', price:1390, emoji:'🥪' },
@@ -110,6 +106,52 @@ const sets = [
   { id:'salad-lunch', name:'Сет «Легкий обед»', size:'НА 2-3', description:'Цезарь, кавказский салат, салат «Биг Хит», соки и 2 соуса.', price:790, emoji:'🥗' },
   { id:'sweet-table', name:'Сет «Сладкий стол»', size:'НА КОМПАНИЮ', description:'Венские вафли, сырники, пахлава с мороженым, Наполеон, медовик, пончики и чай/кофе.', price:1190, emoji:'🍩' }
 ];
+
+const menuItems = [
+  { id:'sandwich-jelani', category:'fastfood', name:'Сэндвич JELANI', description:'Фирменный сэндвич JELANI.', price:259, emoji:'🥪', visual:'orange', image:'images/menu/sandwich-jelani.jpg', tags:['сэндвич','jelani'] },
+  { id:'shawarma-cheese', category:'fastfood', name:'Шаурма в сырном', description:'Шаурма в сырном лаваше.', price:249, emoji:'🌯', visual:'orange', image:'images/menu/shawarma-cheese.jpg', tags:['шаурма','сырный лаваш'] },
+  { id:'shawarma-regular', category:'fastfood', name:'Шаурма обычная', description:'Классическая шаурма JELANI.', price:239, emoji:'🌯', visual:'green', image:'images/menu/shawarma-regular.jpg', tags:['шаурма'] },
+  { id:'doner', category:'fastfood', name:'Донер', description:'Донер из действующего меню JELANI.', price:249, emoji:'🥙', visual:'dark', image:'images/menu/doner.jpg', tags:['донер'] },
+  { id:'hotdog', category:'fastfood', name:'Хот-дог', description:'Хот-дог из действующего меню JELANI.', price:139, emoji:'🌭', visual:'orange', image:'images/menu/hotdog.jpg', tags:['хот-дог'] },
+
+  { id:'pancake-nutella-banana', category:'pancakes', name:'Блинчик с Nutella и бананом', description:'Блинчик с Nutella и бананом.', price:129, emoji:'🥞', visual:'yellow', tags:['блинчик','nutella','банан'] },
+  { id:'pancake-nutella-raspberry', category:'pancakes', name:'Блинчик с Nutella и малиной', description:'Блинчик с Nutella и малиной.', price:139, emoji:'🥞', visual:'pink', tags:['блинчик','nutella','малина'] },
+  { id:'pancake-condensed', category:'pancakes', name:'Блинчик со сгущёнкой', description:'Блинчик со сгущённым молоком.', price:89, emoji:'🥞', visual:'yellow', tags:['блинчик','сгущенка'] },
+  { id:'pancake-boiled-condensed-nuts', category:'pancakes', name:'Блинчик с варёной сгущёнкой и орехами', description:'Блинчик с варёной сгущёнкой и орехами.', price:99, emoji:'🥞', visual:'orange', tags:['блинчик','сгущенка','орехи'] },
+  { id:'pancake-cheese', category:'pancakes', name:'Блинчик с сыром', description:'Несладкий блинчик с сыром.', price:89, emoji:'🥞', visual:'green', tags:['блинчик','сыр'] },
+  { id:'pancake-ham-cheese', category:'pancakes', name:'Блинчик с ветчиной и сыром', description:'Несладкий блинчик с ветчиной и сыром.', price:109, emoji:'🥞', visual:'pink', tags:['блинчик','ветчина','сыр'] },
+
+  { id:'sandwich-sausage-box', category:'sandwiches', name:'Сэндвич с колбасой, 2 шт.', description:'Два сэндвича с колбасой в коробке.', price:139, emoji:'🥪', visual:'pink', image:'images/menu/sandwich-sausage.jpg', tags:['сэндвич','колбаса','2 штуки'] },
+  { id:'sandwich-chicken-box', category:'sandwiches', name:'Сэндвич с курицей, 2 шт.', description:'Два сэндвича с курицей в коробке.', price:139, emoji:'🥪', visual:'green', image:'images/menu/sandwich-chicken.jpg', tags:['сэндвич','курица','2 штуки'] },
+  { id:'fried-sandwiches-box', category:'sandwiches', name:'Жареные бутерброды, 2 шт.', description:'Два горячих жареных бутерброда.', price:149, emoji:'🍞', visual:'yellow', tags:['бутерброды','2 штуки'] },
+
+  { id:'nuggets-6', category:'snacks', name:'Наггетсы, 6 шт.', description:'Порция из 6 наггетсов.', price:119, emoji:'🍗', visual:'orange', image:'images/menu/nuggets.jpg', tags:['наггетсы','6 штук'] },
+  { id:'nuggets-9', category:'snacks', name:'Наггетсы, 9 шт.', description:'Порция из 9 наггетсов.', price:139, emoji:'🍗', visual:'orange', image:'images/menu/nuggets.jpg', tags:['наггетсы','9 штук'] },
+  { id:'onion-rings-6', category:'snacks', name:'Луковые кольца, 6 шт.', description:'Порция из 6 луковых колец.', price:67, emoji:'🧅', visual:'yellow', image:'images/menu/onion-rings.jpg', tags:['луковые кольца','6 штук'] },
+  { id:'onion-rings-9', category:'snacks', name:'Луковые кольца, 9 шт.', description:'Порция из 9 луковых колец.', price:99, emoji:'🧅', visual:'yellow', image:'images/menu/onion-rings.jpg', tags:['луковые кольца','9 штук'] },
+  { id:'fries-small', category:'snacks', name:'Картофель фри маленький, 80 г', description:'Маленькая порция картофеля фри, 80 г.', price:79, emoji:'🍟', visual:'yellow', image:'images/menu/fries.jpg', tags:['фри','80 г'] },
+  { id:'fries-medium', category:'snacks', name:'Картофель фри средний, 120 г', description:'Средняя порция картофеля фри, 120 г.', price:99, emoji:'🍟', visual:'yellow', image:'images/menu/fries.jpg', tags:['фри','120 г'] },
+  { id:'fries-large', category:'snacks', name:'Картофель фри большой, 160 г', description:'Большая порция картофеля фри, 160 г.', price:119, emoji:'🍟', visual:'yellow', image:'images/menu/fries.jpg', tags:['фри','160 г'] },
+
+  { id:'cake-slice', category:'desserts', name:'Кусок торта', description:'Порционный кусок торта.', price:149, emoji:'🍰', visual:'pink', tags:['торт','десерт'] },
+
+  { id:'smoothie-strawberry-banana', category:'drinks', name:'Смузи «Клубника — банан»', description:'Смузи с клубникой и бананом.', price:179, emoji:'🥤', visual:'pink', image:'images/menu/smoothie-strawberry-banana.jpg', tags:['смузи','клубника','банан'] },
+  { id:'smoothie-raspberry-banana', category:'drinks', name:'Смузи «Малина — банан»', description:'Смузи с малиной и бананом.', price:199, emoji:'🥤', visual:'pink', image:'images/menu/smoothie-raspberry-banana.jpg', tags:['смузи','малина','банан'] },
+  { id:'smoothie-wild-strawberry-banana', category:'drinks', name:'Смузи «Земляника — банан»', description:'Смузи с земляникой и бананом.', price:219, emoji:'🥤', visual:'pink', image:'images/menu/smoothie-wild-strawberry-banana.jpg', tags:['смузи','земляника','банан'] },
+  { id:'smoothie-pear-banana', category:'drinks', name:'Смузи «Груша — банан»', description:'Смузи с грушей и бананом.', price:169, emoji:'🥤', visual:'green', image:'images/menu/smoothie-pear-banana.jpg', tags:['смузи','груша','банан'] },
+  { id:'smoothie-pear-wild-strawberry', category:'drinks', name:'Смузи «Груша — земляника»', description:'Смузи с грушей и земляникой.', price:209, emoji:'🥤', visual:'pink', image:'images/menu/smoothie-pear-wild-strawberry.jpg', tags:['смузи','груша','земляника'] },
+  { id:'tea', category:'drinks', name:'Чай', description:'Горячий чай.', price:39, emoji:'🍵', visual:'green', tags:['чай','горячий напиток'] },
+  { id:'coffee', category:'drinks', name:'Кофе', description:'Горячий кофе.', price:39, emoji:'☕', visual:'dark', tags:['кофе','горячий напиток'] },
+
+  ...sauces.map((name, index) => ({ id:`sauce-${name.toLowerCase().replace(/ё/g,'е')}`, category:'sauces', name:`Соус «${name}»`, description:'Порция соуса к блюду.', price:19, emoji:'🥣', visual:['yellow','green','dark','pink','orange','dark'][index], tags:['соус',name.toLowerCase()] }))
+];
+
+const combos = [
+  { id:'student-combo', categories:['all'], name:'Студенческое комбо', description:'Напиток 0,4 л, шаурма или донер и закуска на выбор.', price:399, sizes:[{name:'Комбо',price:399}], saving:0, badge:'399 ₽', image:'images/hero-slide-1.png?v=20260831-1', emoji:'🌯', flags:['comboMain','comboSideLarge'], composition:['Напиток 0,4 л','Шаурма или донер','Фри средний или луковые кольца 9 шт.'] },
+  { id:'jelani-combo', categories:['all'], name:'JELANI комбо', description:'Напиток 0,3 л, шаурма и закуска на выбор.', price:410, sizes:[{name:'Комбо',price:410}], saving:0, badge:'JELANI', image:'images/menu/shawarma-regular.jpg', emoji:'🌯', flags:['comboSideSmall'], composition:['Напиток 0,3 л','Шаурма','Фри маленький или луковые кольца 6 шт.'] }
+];
+
+const sets = [];
 
 const PRODUCT_NUTRITION = {
   burger:[640,31,34,54],
@@ -295,6 +337,15 @@ function normalizedPromo(){ return promoCode.trim().toUpperCase(); }
 function firstOrderPromoAvailable(){ return !localStorage.getItem('jelani_first_order_used') && safeJson('jelani_orders', []).length === 0; }
 function promoDiscount(){ return isAuthorized() && normalizedPromo() === 'JELANI10' && firstOrderPromoAvailable() ? Math.round(cartSubtotal() * 0.1) : 0; }
 function cartTotal(){ return Math.max(0, cartSubtotal() - promoDiscount() - activeBonusDiscount()); }
+function checkoutDeliveryFee(){ return $('#delivery-select')?.value === 'Доставка' ? DELIVERY_FEE : 0; }
+function checkoutTotal(){ return cartTotal() + checkoutDeliveryFee(); }
+function renderCheckoutTotals(){
+  const fee=checkoutDeliveryFee();
+  const feeRow=$('#checkout-delivery-row');
+  if(feeRow)feeRow.hidden=fee<=0;
+  if($('#checkout-delivery-fee'))$('#checkout-delivery-fee').textContent=formatPrice(fee);
+  if($('#checkout-total'))$('#checkout-total').textContent=formatPrice(checkoutTotal());
+}
 function esc(value){ return String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char])); }
 function showToast(text){ const el=$('#toast'); el.textContent=text; el.classList.add('show'); clearTimeout(showToast.timeout); showToast.timeout=setTimeout(()=>el.classList.remove('show'),2200); }
 function syncPageScroll(){
@@ -417,7 +468,7 @@ function setAuthMessage(message='',error=false){
 }
 
 function authMethodLabel(provider){
-  return {phone:'Телефон',telegram:'Telegram',vk:'VK',ok:'Одноклассники',mail:'Mail.ru',max:'MAX'}[provider]||provider;
+  return {phone:'Телефон',telegram:'Telegram',yandex:'Яндекс ID',vk:'VK',ok:'Одноклассники',mail:'Mail.ru',max:'MAX'}[provider]||provider;
 }
 
 function renderTelegramLogin(){
@@ -464,7 +515,8 @@ function renderAuthProviders(){
     button.title=available?'':`${authMethodLabel(button.dataset.authProvider)} пока настраивается`;
   });
   renderTelegramLogin();
-  if(!Object.values(config).some(provider=>provider?.available))setAuthMessage('Способы входа появятся после настройки ключей на сервере.');
+  if(authState.config?.personalDataLocalized===false)setAuthMessage('Личный кабинет откроется после переноса защищённого хранения данных в Россию.');
+  else if(!Object.values(config).some(provider=>provider?.available))setAuthMessage('Способы входа появятся после настройки ключей на сервере.');
 }
 
 function mergeServerOrders(orders){
@@ -493,7 +545,7 @@ async function hydrateAuth(){
     apiRequest('/api/auth/config').catch(()=>null),
     apiRequest('/api/auth/session').catch(()=>null)
   ]);
-  authState.config=config||{providers:{phone:{available:false},telegram:{available:false},vk:{available:false},ok:{available:false},mail:{available:false},max:{available:false}}};
+  authState.config=config||{providers:{phone:{available:false},telegram:{available:false},yandex:{available:false},vk:{available:false},ok:{available:false},mail:{available:false},max:{available:false}}};
   if(session?.authenticated)applyAuthPayload(session);
   else {
     if(session?.authenticated===false)resetPrivateLocalData();
@@ -959,7 +1011,8 @@ function activeBonusDiscount(){
   const bonus=activeBonus();
   if(!bonus)return 0;
   if(bonus.type==='discount_5')return normalizedPromo()?0:Math.round(cartSubtotal()*.05);
-  if(bonus.type==='free_sauce'||bonus.type==='free_cheese')return Math.min(35,cartSubtotal());
+  if(bonus.type==='free_sauce')return Math.min(19,cartSubtotal());
+  if(bonus.type==='free_cheese')return Math.min(35,cartSubtotal());
   if(bonus.type==='free_drink'&&cartSubtotal()>=700)return Math.min(90,cartSubtotal());
   return 0;
 }
@@ -1331,7 +1384,7 @@ function comboCardTemplate(item){
     <p>${item.description}</p>
     <div class="combo-set-meta">
       <span class="set-price">${priceLabel}</span>
-      <small>Выгода ${formatPrice(item.saving)}</small>
+      ${item.saving ? `<small>Выгода ${formatPrice(item.saving)}</small>` : '<small>Фиксированная цена</small>'}
     </div>
     <button type="button" data-combo="${item.id}" aria-label="Выбрать ${item.name}">+</button>
   </article>`;
@@ -1340,9 +1393,12 @@ function cardTemplate(item, type='menu'){
   const action = type==='combo' ? `data-combo="${item.id}"` : type==='set' ? `data-set="${item.id}"` : `data-add="${item.id}"`;
   const label = type==='combo' ? 'Выбрать' : type==='set' ? 'В корзину' : 'В корзину';
   if(type==='set') return `<article class="set-card product-card"><button class="card-details-hit" type="button" data-product-detail="set:${item.id}" aria-label="Подробнее о ${esc(item.name)}"></button><span class="set-size">${item.size}</span><h3>${item.name}</h3><p>${item.description}</p><div class="set-price">${formatPrice(item.price)}</div><button class="set-card-add" type="button" ${action} aria-label="${label}">+</button></article>`;
+  const visual = item.image
+    ? `<img src="${item.image}" alt="${esc(item.name)}" loading="lazy">`
+    : `<span>${item.emoji}</span>`;
   return `<article class="food-card product-card ${type==='menu'?'menu-card':''}">
     <button class="card-details-hit" type="button" data-product-detail="menu:${item.id}" aria-label="Подробнее о ${esc(item.name)}"></button>
-    <div class="food-card__visual ${visualClass(item.visual)}"><span>${item.emoji}</span>${type==='combo'?'<span class="food-card__badge">ВЫБОР ВНУТРИ</span>':''}</div>
+    <div class="food-card__visual ${visualClass(item.visual)}">${visual}${type==='combo'?'<span class="food-card__badge">ВЫБОР ВНУТРИ</span>':''}</div>
     <div class="food-card__body"><h3 class="food-card__title">${item.name}</h3><p class="food-card__desc">${item.description}</p><div class="food-card__footer"><strong class="price">${formatPrice(item.price)}</strong><button class="card-add" type="button" ${action} aria-label="${label}" title="${label}">+</button></div></div>
   </article>`;
 }
@@ -1363,7 +1419,7 @@ function findSet(id){ return sets.find(item=>item.id===id); }
 function productComposition(item, type){
   if(type === 'set') return item.description.replace(/\.$/,'').split(/,\s*|\s+и\s+/).filter(Boolean);
   if(item.category === 'sauces'){
-    return [item.name.replace(/^Соус\s+/,''), 'Порция 30 г'];
+    return [item.name.replace(/^Соус\s+/,''), 'Порция соуса'];
   }
   if(PRODUCT_COMPOSITION[item.id]) return PRODUCT_COMPOSITION[item.id];
   const description = item.description.replace(/\.$/,'');
@@ -1375,8 +1431,9 @@ function productNutrition(item, type){
   let values;
   if(type === 'set') values = SET_NUTRITION[item.id];
   else if(item.category === 'sauces') values = SAUCE_NUTRITION[Number(item.id.replace('sauce-',''))];
-  else values = PRODUCT_NUTRITION[item.id] || CATEGORY_NUTRITION[item.category];
-  const [kcal=0,protein=0,fat=0,carbs=0] = values || [];
+  else values = PRODUCT_NUTRITION[item.id];
+  if(!values) return null;
+  const [kcal=0,protein=0,fat=0,carbs=0] = values;
   return { kcal,protein,fat,carbs };
 }
 
@@ -1398,14 +1455,21 @@ function openProductDetail(reference){
   $('#product-category').textContent = category;
   $('#product-title').textContent = item.name;
   $('#product-description').textContent = item.description;
-  $('#product-visual').className = `product-detail__visual ${visualClass(visual)}`;
-  $('#product-emoji').textContent = item.emoji || '🍽️';
+  const productVisual = $('#product-visual');
+  productVisual.className = `product-detail__visual ${visualClass(visual)}`;
+  productVisual.innerHTML = item.image
+    ? `<img src="${item.image}" alt="${esc(item.name)}">`
+    : `<span id="product-emoji">${item.emoji || '🍽️'}</span>`;
   $('#product-composition').innerHTML = productComposition(item,type).map(part=>`<span>${esc(part)}</span>`).join('');
-  $('#product-nutrition-title').textContent = type === 'set' ? 'КБЖУ всего набора' : 'КБЖУ на порцию';
-  $('#product-kcal').textContent = nutrition.kcal;
-  $('#product-protein').textContent = `${nutrition.protein} г`;
-  $('#product-fat').textContent = `${nutrition.fat} г`;
-  $('#product-carbs').textContent = `${nutrition.carbs} г`;
+  const nutritionSection = $('#product-nutrition-title').closest('.product-detail__section');
+  nutritionSection.hidden = !nutrition;
+  if(nutrition){
+    $('#product-nutrition-title').textContent = type === 'set' ? 'КБЖУ всего набора' : 'КБЖУ на порцию';
+    $('#product-kcal').textContent = nutrition.kcal;
+    $('#product-protein').textContent = `${nutrition.protein} г`;
+    $('#product-fat').textContent = `${nutrition.fat} г`;
+    $('#product-carbs').textContent = `${nutrition.carbs} г`;
+  }
   $('#product-price').textContent = formatPrice(item.price);
   openOverlay('#product-overlay');
 }
@@ -1430,6 +1494,9 @@ function optionList(value){ return Array.isArray(value) ? value : value ? [value
 function comboDefaultOptions(combo){
   const flags = combo.flags || [];
   const options = { size:combo.sizes?.[0]?.name };
+  if(flags.includes('comboMain')) options.main = 'Шаурма обычная';
+  if(flags.includes('comboSideLarge')) options.side = 'Картофель фри средний';
+  if(flags.includes('comboSideSmall')) options.side = 'Картофель фри маленький';
   if(flags.includes('meat') || flags.includes('мясо')) options.meat = 'Курица';
   if(flags.includes('side')) options.side = 'Картофель фри';
   if(flags.includes('sandwich')) options.sandwich = 'Сэндвич с курицей';
@@ -1446,7 +1513,7 @@ function comboDefaultOptions(combo){
 }
 
 function comboDetails(options={}){
-  const labels = { size:'Размер', meat:'Мясо', side:'Гарнир', sandwich:'Сэндвич', morningBase:'Основа', morningHot:'Горячий напиток', morningCold:'Холодный напиток', sweetBase:'Десерт', sweetDrink:'Напиток', drink:'Напиток', shawarmaSauces:'Соусы в шаурму', friesSauce:'Соус к фри', sauce:'Соус', twoSauces:'Соусы' };
+  const labels = { size:'Вариант', main:'Основное блюдо', meat:'Мясо', side:'Закуска', sandwich:'Сэндвич', morningBase:'Основа', morningHot:'Горячий напиток', morningCold:'Холодный напиток', sweetBase:'Десерт', sweetDrink:'Напиток', drink:'Напиток', shawarmaSauces:'Соусы в шаурму', friesSauce:'Соус к фри', sauce:'Соус', twoSauces:'Соусы' };
   return Object.entries(labels).flatMap(([key,label])=>{
     const values = optionList(options[key]);
     return values.length ? [`${label}: ${values.join(', ')}`] : [];
@@ -1496,21 +1563,16 @@ function repriceCartItem(item){
     const options = item.options || comboDefaultOptions(combo);
     const size = combo.sizes?.find(value=>value.name===options.size);
     if(!size) return { available:false, item, reason:'выбранный размер больше недоступен' };
-    const selectedValues = [options.drink, options.friesSauce, options.sauce, ...optionList(options.shawarmaSauces), ...optionList(options.twoSauces)].filter(Boolean);
-    const knownValues = new Set([...drinks, ...sauces, 'Мацони', 'Кисло-сладкий']);
+    const selectedValues = [options.main, options.side, options.drink, options.friesSauce, options.sauce, ...optionList(options.shawarmaSauces), ...optionList(options.twoSauces)].filter(Boolean);
+    const knownValues = new Set([...drinks, ...sauces, 'Шаурма обычная', 'Шаурма в сырном', 'Донер', 'Картофель фри средний', 'Луковые кольца 9 шт.', 'Картофель фри маленький', 'Луковые кольца 6 шт.']);
     if(selectedValues.some(value=>!knownValues.has(value))) return { available:false, item, reason:'выбранный вариант больше недоступен' };
     return { available:true, item:{ ...item, name:combo.name, price:size.price, emoji:combo.emoji, details:comboDetails(options), options } };
   }
 
   if(item.id === 'custom-shawarma' || item.id === 'custom-sandwich'){
-    const type = item.id.replace('custom-','');
-    const price = builderPriceForOptions(type,item.options);
-    if(price == null) return { available:false, item, reason:'состав изменился' };
-    return { available:true, item:{ ...item, price, details:builderDetails(item.options) } };
+    return { available:false, item, reason:'конструктор временно недоступен' };
   }
 
-  const upsells = { 'upsell-fries':79, 'upsell-drink':69, 'upsell-sauce':35, 'upsell-cheese':35 };
-  if(Object.prototype.hasOwnProperty.call(upsells,item.id)) return { available:true, item:{ ...item, price:upsells[item.id] } };
   return { available:false, item, reason:'позиции больше нет в меню' };
 }
 
@@ -1538,7 +1600,7 @@ function quickOrderCard(ref){
       <strong>${formatPrice(item.price)}</strong>
     </div>
     <button class="primary-btn" type="button" data-quick-add="${ref.type}:${item.id}">Добавить за один клик</button>
-    ${ref.type === 'combo' ? `<button class="quick-edit-button" type="button" data-quick-edit="combo:${item.id}">Изменить состав</button>` : ref.type === 'menu' ? '<button class="quick-edit-button" type="button" data-quick-edit="builder:shawarma">Изменить состав</button>' : ''}
+    ${ref.type === 'combo' ? `<button class="quick-edit-button" type="button" data-quick-edit="combo:${item.id}">Изменить выбор</button>` : ''}
   </article>`;
 }
 
@@ -1568,9 +1630,9 @@ function renderQuickOrder(){
   }
 
   const refs = [
-    { type:'menu', id:'shawarma-standard-chicken' },
-    { type:'combo', id:'shawarma-combo' },
-    { type:'set', id:'duet' }
+    { type:'menu', id:'shawarma-regular' },
+    { type:'combo', id:'student-combo' },
+    { type:'menu', id:'sandwich-jelani' }
   ];
   root.innerHTML = `<div class="quick-order-heading"><div><p class="eyebrow">БЫСТРЫЙ ЗАКАЗ</p><h2>Не хочешь выбирать? Закажи популярное</h2></div><p>Три готовых варианта из действующего меню. Цена и состав обновляются вместе с ним.</p></div><div class="quick-order-grid">${refs.map(quickOrderCard).join('')}</div>`;
 }
@@ -1647,7 +1709,7 @@ function renderCart(){
   updateCartCount();
   $('#cart-subtotal').textContent=formatPrice(subtotal);
   $('#cart-total').textContent=formatPrice(total);
-  $('#checkout-total').textContent=formatPrice(total);
+  renderCheckoutTotals();
   $('#cart-discount').textContent=`−${formatPrice(discount)}`;
   $('#cart-discount-row').hidden = discount <= 0;
   $('#cart-bonus-row').hidden = !bonus;
@@ -1705,8 +1767,11 @@ function openCombo(id, cartId=null, presetOptions=null){
   editingComboCartId = cartId;
   currentCombo=findCombo(id); if(!currentCombo)return;
   const f=currentCombo.flags||[];
-  $('#combo-modal-hero').innerHTML=`<div class="combo-modal__image"><img src="${currentCombo.image}" alt="${currentCombo.name}"></div><div class="combo-modal__about"><p>${currentCombo.description}</p><div class="combo-composition">${currentCombo.composition.map(item=>`<span>${item}</span>`).join('')}</div><strong>Выгода ${formatPrice(currentCombo.saving)}</strong></div>`;
-  let html=getComboControl('Размер комбо',currentCombo.sizes,'size');
+  $('#combo-modal-hero').innerHTML=`<div class="combo-modal__image"><img src="${currentCombo.image}" alt="${currentCombo.name}"></div><div class="combo-modal__about"><p>${currentCombo.description}</p><div class="combo-composition">${currentCombo.composition.map(item=>`<span>${item}</span>`).join('')}</div>${currentCombo.saving ? `<strong>Выгода ${formatPrice(currentCombo.saving)}</strong>` : '<strong>Цена за всё комбо</strong>'}</div>`;
+  let html=getComboControl('Вариант',currentCombo.sizes,'size');
+  if(f.includes('comboMain')) html+=getComboControl('Выбери шаурму или донер',['Шаурма обычная','Шаурма в сырном','Донер'],'main');
+  if(f.includes('comboSideLarge')) html+=getComboControl('Выбери закуску',['Картофель фри средний','Луковые кольца 9 шт.'],'side');
+  if(f.includes('comboSideSmall')) html+=getComboControl('Выбери закуску',['Картофель фри маленький','Луковые кольца 6 шт.'],'side');
   if(f.includes('мясо')||f.includes('meat')) html+=getComboControl('Выбери мясо',['Курица','Говядина'],'meat');
   if(f.includes('side')) html+=getComboControl('Гарнир',['Картофель фри','Луковые кольца'],'side');
   if(f.includes('sandwich')) html+=getComboControl('Сэндвич',['Сэндвич с курицей','Сэндвич с ветчиной','Жареный сэндвич','Американский сэндвич','Перекрестный с курицей','Перекрестный с ветчиной','Чиабатта-сэндвич'],'sandwich');
@@ -1730,8 +1795,8 @@ function valuesByName(name){ return $$(`input[name="${name}"]:checked`).map(el=>
 function addCombo(){
   if(!currentCombo)return; const data=[]; const f=currentCombo.flags||[];
   const options={};
-  const detailLabels={size:'Размер',meat:'Мясо',side:'Гарнир',sandwich:'Сэндвич',morningBase:'Основа',morningHot:'Горячий напиток',morningCold:'Холодный напиток',sweetBase:'Десерт',sweetDrink:'Напиток',drink:'Напиток',shawarmaSauces:'Соусы в шаурму',friesSauce:'Соус к фри',sauce:'Соус',twoSauces:'Соусы'};
-  const possible=['size','meat','side','sandwich','morningBase','morningHot','morningCold','sweetBase','sweetDrink','drink','shawarmaSauces','friesSauce','sauce','twoSauces'];
+  const detailLabels={size:'Вариант',main:'Основное блюдо',meat:'Мясо',side:'Закуска',sandwich:'Сэндвич',morningBase:'Основа',morningHot:'Горячий напиток',morningCold:'Холодный напиток',sweetBase:'Десерт',sweetDrink:'Напиток',drink:'Напиток',shawarmaSauces:'Соусы в шаурму',friesSauce:'Соус к фри',sauce:'Соус',twoSauces:'Соусы'};
+  const possible=['size','main','meat','side','sandwich','morningBase','morningHot','morningCold','sweetBase','sweetDrink','drink','shawarmaSauces','friesSauce','sauce','twoSauces'];
   possible.forEach(key=>{const list=valuesByName(`combo-${key}`);if(list.length){options[key]=list.length===1?list[0]:list;data.push(`${detailLabels[key]}: ${list.join(', ')}`);}});
   replaceOrAddCartItem(makeCartItem({id:currentCombo.id,name:currentCombo.name,price:selectedComboPrice(),emoji:currentCombo.emoji,details:data.join(' · '),options}), editingComboCartId);
   editingComboCartId = null;
@@ -1831,10 +1896,8 @@ function addBuilder(){
 
 function addUpsell(kind){
   const upsells = {
-    fries: { id:'upsell-fries', name:'Картофель фри к заказу', price:79, emoji:'🍟', details:'допродажа' },
-    drink: { id:'upsell-drink', name:'Напиток 0.5', price:69, emoji:'🥤', details:'допродажа' },
-    sauce: { id:'upsell-sauce', name:'Соус на выбор', price:35, emoji:'🥣', details:'допродажа' },
-    cheese: { id:'upsell-cheese', name:'Добавка: сыр', price:35, emoji:'🧀', details:'к основному блюду' }
+    fries: { id:'fries-small', name:'Картофель фри маленький, 80 г', price:79, emoji:'🍟', details:'80 г' },
+    sauce: { id:'sauce-сырный', name:'Соус «Сырный»', price:19, emoji:'🥣', details:'порция' }
   };
   if(upsells[kind]) addCart(makeCartItem(upsells[kind]));
 }
@@ -1924,6 +1987,8 @@ function renderPaymentConfig(){
   const methods=paymentConfig.methods||{};
   const inputs=$$('#payment-methods input[name="payment"]');
   const pickup=$('#delivery-select')?.value!=='Доставка';
+  const deliveryMinimumMet=pickup||cartSubtotal()>=DELIVERY_MINIMUM;
+  renderCheckoutTotals();
   inputs.forEach(input=>{
     const methodAvailable=input.value==='bank_card'?methods.bankCard:input.value==='sbp'?methods.sbp:methods.cash&&pickup;
     const enabled=paymentConfig.available&&methodAvailable;
@@ -1942,15 +2007,19 @@ function renderPaymentConfig(){
   if(emailField)emailField.hidden=!needsReceiptEmail;
   if(emailInput)emailInput.required=needsReceiptEmail;
   const status=$('#payment-status');
-  const ready=Boolean(selected);
+  const ready=Boolean(selected)&&deliveryMinimumMet;
   status?.classList.toggle('is-ready',ready);
   status?.classList.toggle('is-error',!ready);
-  if($('#payment-status-title'))$('#payment-status-title').textContent=cashSelected
+  if($('#payment-status-title'))$('#payment-status-title').textContent=!deliveryMinimumMet
+    ? `Минимум для доставки — ${formatPrice(DELIVERY_MINIMUM)}`
+    : cashSelected
     ? 'Оплата при получении'
     : ready ? 'Безопасная предоплата' : pickup ? 'Выберите способ оплаты' : 'Для доставки нужна онлайн-оплата';
-  if($('#payment-status-copy'))$('#payment-status-copy').textContent=cashSelected
+  if($('#payment-status-copy'))$('#payment-status-copy').textContent=!deliveryMinimumMet
+    ? `Добавьте блюда ещё на ${formatPrice(DELIVERY_MINIMUM-cartSubtotal())}. Доставка стоит ${formatPrice(DELIVERY_FEE)}.`
+    : cashSelected
     ? 'Оплатите заказ наличными при самовывозе.'
-    : ready ? 'После подтверждения оплаты заказ автоматически поступит на кухню.'
+    : ready ? pickup ? 'После подтверждения оплаты заказ автоматически поступит на кухню.' : `В итог включена доставка ${formatPrice(DELIVERY_FEE)}.`
       : pickup ? 'Доступные способы оплаты появятся здесь.' : 'Наличные доступны только при самовывозе.';
   if($('#checkout-note'))$('#checkout-note').textContent=cashSelected
     ? 'После оформления мы сразу передадим заказ на кухню. Статус появится здесь автоматически.'
@@ -1973,7 +2042,7 @@ async function hydratePaymentConfig(){
 }
 function openCheckout(){
   if(!cart.length){showToast('Сначала добавь позиции в корзину');return;}
-  $('#checkout-total').textContent=formatPrice(cartTotal());
+  renderCheckoutTotals();
   const profile = getProfile();
   const form = $('#checkout-form');
   if(profile && form){
@@ -2152,6 +2221,18 @@ async function completeCheckout(event){
     showToast('Наличные доступны только при самовывозе');
     return;
   }
+  if(form.get('delivery')==='Доставка'&&cartSubtotal()<DELIVERY_MINIMUM){
+    showToast(`Минимальная сумма блюд для доставки — ${formatPrice(DELIVERY_MINIMUM)}`);
+    return;
+  }
+  if(form.get('offerAcceptance')!=='on'){
+    showToast('Подтвердите принятие публичной оферты');
+    return;
+  }
+  if(form.get('personalDataConsent')!=='on'){
+    showToast('Подтвердите отдельное согласие на обработку данных');
+    return;
+  }
   const phoneInput = formEl.querySelector('input[name="phone"]');
   if(!validatePhoneField(phoneInput)){
     phoneInput.reportValidity();
@@ -2191,11 +2272,18 @@ async function completeCheckout(event){
     promo:normalizedPromo(),
     subtotal:cartSubtotal(),
     discount,
-    total:cartTotal(),
+    deliveryFee:form.get('delivery')==='Доставка'?DELIVERY_FEE:0,
+    total:cartTotal()+(form.get('delivery')==='Доставка'?DELIVERY_FEE:0),
     bonusId:selectedBonus?.id || '',
     items:snapshotItems(),
     trackingToken,
-    profile:profilePayload()
+    profile:profilePayload(),
+    legalConsent:{
+      offerAccepted:true,
+      offerVersion:OFFER_VERSION,
+      personalDataAccepted:true,
+      personalDataConsentVersion:PERSONAL_DATA_CONSENT_VERSION
+    }
   };
   pendingCheckoutOrder = order;
 
@@ -2207,6 +2295,7 @@ async function completeCheckout(event){
     const data = await sendOrderToServer(order);
     order.subtotal = Number(data.order?.subtotal ?? order.subtotal);
     order.discount = Number(data.order?.discount ?? order.discount);
+    order.deliveryFee = Number(data.order?.deliveryFee ?? order.deliveryFee);
     order.total = Number(data.order?.total ?? order.total);
     if(Array.isArray(data.order?.items)) order.items = data.order.items;
     storePendingPayment(order);
@@ -2366,8 +2455,8 @@ function updateStoreStatus(){
   const now = new Date();
   const minutes = now.getHours() * 60 + now.getMinutes();
   const openAt = 9 * 60;
-  const closeAt = 21 * 60 + 45;
-  const text = minutes >= openAt && minutes < closeAt ? 'Открыто до 21:45' : 'Заказы принимаем с 9:00';
+  const closeAt = 21 * 60;
+  const text = minutes >= openAt && minutes < closeAt ? 'Открыто до 21:00' : 'Заказы принимаем с 9:00';
   $$('[data-store-status]').forEach(item=>{ item.textContent = text; });
 }
 

@@ -13,10 +13,10 @@
 - После каждого нового заказа сервер выдаёт один случайный бонус с весами, сроком действия и одноразовым применением.
 - Активный JELANI DROP загружается из D1, автоматически скрывается после окончания и учитывает остаток.
 - Вкусовой профиль и персональные комбо формируются по реальным позициям и модификаторам заказов.
-- Профиль клиента работает через серверную сессию: вход по SMS и Telegram, привязка VK и Mail.ru, адреса, история, выход и удаление профиля.
+- Профиль клиента работает через серверную сессию: вход по SMS, Telegram, Яндекс ID, VK и Mail.ru, адреса, история, выход и удаление профиля.
 - MAX подключается тем же OAuth-маршрутом после выдачи официальных адресов и ключей приложения.
 - Быстрые фильтры поиска: острое, с говядиной, до 300 ₽, без мяса, на двоих, комбо.
-- Статус точки по времени: открыто до 21:45 или заказы с 9:00.
+- Статус точки по времени: открыто до 21:00 или заказы с 9:00.
 - Серверная отправка оплаченных заказов в Telegram без хранения токена в браузере.
 - Онлайн-предоплата через YooKassa: банковская карта и СБП, серверные уведомления, защита от повторной обработки и полный возврат через администратора.
 - Оплата наличными при получении доступна только для самовывоза и дополнительно проверяется сервером.
@@ -60,6 +60,8 @@ AUTH_SECRET
 SMSRU_API_ID
 SMSRU_FROM
 TELEGRAM_BOT_USERNAME
+YANDEX_CLIENT_ID
+YANDEX_CLIENT_SECRET
 VK_CLIENT_ID
 VK_CLIENT_SECRET
 OK_CLIENT_ID
@@ -82,7 +84,7 @@ PAYMENT_CREATION_TIMEOUT_MINUTES
 
 `ADMIN_API_TOKEN` защищает управление бонусами, DROP и возвратами. Используйте 64 шестнадцатеричных символа; токен нельзя добавлять в клиентский код.
 
-`YOOKASSA_SECRET_KEY` хранится только в секретах Worker. Для `YOOKASSA_PAYMENT_METHODS` используйте `bank_card,sbp`. Если чеки формирует YooKassa, включите `YOOKASSA_RECEIPTS=true`, укажите корректный для вашей системы налогообложения `YOOKASSA_VAT_CODE` и проверьте `YOOKASSA_PAYMENT_SUBJECT` с бухгалтером. До этого оставьте `YOOKASSA_RECEIPTS=false`.
+`YOOKASSA_SECRET_KEY` хранится только в секретах сервера. Для `YOOKASSA_PAYMENT_METHODS` используйте `bank_card,sbp`. Для ПСН и операций без НДС настроено `YOOKASSA_RECEIPTS=true` и `YOOKASSA_VAT_CODE=1`; блюда передаются как товар, доставка — отдельной услугой. Перед боевым запуском подтвердите у бухгалтера, что конкретные операции ИП действительно не подпадают под исключения, облагаемые НДС.
 
 4. Создайте Cloudflare D1 database `jelani-db` и добавьте к Worker binding:
 
@@ -98,13 +100,16 @@ DB
 
 Чтобы включить Telegram Mini App, откройте в BotFather `/mybots`, выберите бота, затем `Bot Settings -> Configure Mini App -> Enable Mini App` и укажите `https://jjelani.ru/` как Web App URL. При запуске внутри Telegram клиент автоматически передаёт `initData` на `/api/auth/telegram-webapp`; Worker проверяет подпись и срок данных с помощью токена бота до создания серверной сессии. Токен никогда не передаётся в браузер.
 
-Для VK, Одноклассников и Mail.ru создайте приложения и добавьте точные callback-адреса:
+Для Яндекс ID, VK, Одноклассников и Mail.ru создайте приложения и добавьте точные callback-адреса:
 
 ```text
+https://jjelani.ru/api/auth/oauth/callback/yandex
 https://jjelani.ru/api/auth/oauth/callback/vk
 https://jjelani.ru/api/auth/oauth/callback/ok
 https://jjelani.ru/api/auth/oauth/callback/mail
 ```
+
+Для Яндекс ID создайте приложение типа «Для авторизации» с веб-платформой, добавьте права `login:info`, `login:email`, `login:avatar`, `login:default_phone`, `login:birthday` и сохраните ClientID/Client secret в `YANDEX_CLIENT_ID` и `YANDEX_CLIENT_SECRET`. Сервер использует Authorization Code с PKCE; профиль запрашивается сервером через `Authorization: OAuth`, токен не передаётся клиентскому JavaScript.
 
 VK и Одноклассники используют VK ID OAuth 2.1 с PKCE. Для кнопки Одноклассников создайте отдельное приложение VK ID для сценария OK и сохраните его ID в `OK_CLIENT_ID`. Для Mail.ru используются `https://oauth.mail.ru/login`, `https://oauth.mail.ru/token`, `https://oauth.mail.ru/userinfo` и scope `userinfo`; их можно переопределить переменными `MAILRU_*`.
 
@@ -139,20 +144,28 @@ GET/POST   /api/admin/payments
 
 Передавайте токен в заголовке `Authorization: Bearer ADMIN_API_TOKEN`. Через эти маршруты меняются вероятности бонусов, сроки, условия и расписание DROP.
 
+## Персональные данные и запуск заказов
+
+Текущая привязка Cloudflare D1 сама по себе не подтверждает выполнение требования о локализации персональных данных граждан РФ. До промышленного запуска заказов и личных кабинетов перенесите первичную базу персональных данных в инфраструктуру на территории России и оформите отношения со всеми обработчиками. Только после документальной и технической проверки установите `PERSONAL_DATA_LOCALIZED=true`.
+
+Выбранная целевая инфраструктура и пошаговый план переноса описаны в `RUSSIAN-HOSTING.md`.
+
+Пока переменная отсутствует или равна `false`, API намеренно не открывает оформление заказов и не показывает доступные способы оплаты. Не устанавливайте её в `true` только ради прохождения health-check.
+
 Проверка после деплоя:
 
 ```text
 https://jjelani.ru/api/health
 ```
 
-Рабочая конфигурация возвращает `database: true`, `statusStorage: "d1"`, `telegram: true`, нужные значения в `authProviders`, `onlinePaymentConfigured: true`, `paymentProvider: "yookassa"` и `orderingAvailable: true`.
+Рабочая конфигурация возвращает `database: true`, `personalDataLocalized: true`, `telegram: true`, нужные значения в `authProviders`, `onlinePaymentConfigured: true`, `paymentProvider: "yookassa"` и `orderingAvailable: true`.
 
 ## Онлайн-оплата
 
 1. Заключите договор с YooKassa и включите в магазине банковские карты и СБП.
-2. Скопируйте `shopId` в `YOOKASSA_SHOP_ID`, выпустите секретный ключ API и сохраните его только как `YOOKASSA_SECRET_KEY` в Cloudflare.
+2. Скопируйте `shopId` в `YOOKASSA_SHOP_ID`, выпустите секретный ключ API и сохраните его только как `YOOKASSA_SECRET_KEY` в защищённом хранилище секретов российского сервера (для выбранной схемы — Yandex Lockbox).
 3. Установите `YOOKASSA_PAYMENT_METHODS=bank_card,sbp` и `PUBLIC_SITE_URL=https://jjelani.ru`.
-4. Если чеки формирует YooKassa, согласуйте НДС и предмет расчёта с бухгалтером, затем включите `YOOKASSA_RECEIPTS=true`. До этого оставьте `false`.
+4. Включите в личном кабинете «Чеки от ЮKassa». Проект уже настроен на ПСН, `vat_code=1` («Без НДС»): блюда идут как товар, доставка 149 ₽ — как услуга. Подтвердите настройку у бухгалтера перед первым реальным платежом.
 
 В личном кабинете YooKassa добавьте URL уведомлений:
 

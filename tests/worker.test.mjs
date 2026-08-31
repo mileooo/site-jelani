@@ -24,6 +24,13 @@ import worker, {
   yookassaReceiptItems
 } from '../_worker.js';
 
+const LEGAL_CONSENT = Object.freeze({
+  offerAccepted:true,
+  offerVersion:'2026-08-23',
+  personalDataAccepted:true,
+  personalDataConsentVersion:'2026-08-31'
+});
+
 class TestD1Statement {
   constructor(database,sql) {
     this.database=database;
@@ -106,31 +113,54 @@ test('server prices fixed menu items and ignores browser price', async () => {
   const order = await priceOrder({}, {
     phone: '+7 900 000-00-00',
     promo: '',
-    items: [{ id: 'burger', name: 'Бургер', price: 1, qty: 2 }]
+    items: [{ id: 'sandwich-jelani', name: 'Сэндвич JELANI', price: 1, qty: 2 }]
   });
 
-  assert.equal(serverItemPrice(order.items[0]), 270);
-  assert.equal(order.subtotal, 540);
-  assert.equal(order.total, 540);
+  assert.equal(serverItemPrice(order.items[0]), 259);
+  assert.equal(order.subtotal, 518);
+  assert.equal(order.total, 518);
 });
 
-test('server prices combo size and custom builder options', () => {
+test('delivery orders enforce the 579 ruble food minimum on trusted server prices', async () => {
+  await assert.rejects(
+    () => priceOrder({}, {
+      phone:'+7 900 000-00-00',
+      delivery:'Доставка',
+      promo:'',
+      items:[{ id:'shawarma-regular',name:'Шаурма обычная',price:9999,qty:2 }]
+    }),
+    /579 ₽/
+  );
+
+  const order=await priceOrder({}, {
+    phone:'+7 900 000-00-00',
+    delivery:'Доставка',
+    promo:'',
+    items:[{ id:'shawarma-regular',name:'Шаурма обычная',price:1,qty:3 }]
+  });
+  assert.equal(order.subtotal,717);
+  assert.equal(order.deliveryFee,149);
+  assert.equal(order.total,866);
+});
+
+test('server prices both official combos and rejects the retired builder', () => {
   assert.equal(serverItemPrice({
-    id: 'burger-combo',
-    name: 'Бургер Комбо',
-    options: { size: 'Большой', drink: 'Газировка', sauce: 'Сырный' }
-  }), 510);
+    id: 'student-combo',
+    name: 'Студенческое комбо',
+    options: { size: 'Комбо', main: 'Донер', side: 'Луковые кольца 9 шт.' }
+  }), 399);
 
   assert.equal(serverItemPrice({
+    id: 'jelani-combo',
+    name: 'JELANI комбо',
+    options: { size: 'Комбо', side: 'Картофель фри маленький' }
+  }), 410);
+
+  assert.throws(() => serverItemPrice({
     id: 'custom-shawarma',
     name: 'Шаурма — своя сборка',
-    options: {
-      size: 'Стандартная',
-      meat: 'Говядина',
-      sauces: ['Чесночный', 'Сырный', 'Чили'],
-      extras: ['Сыр']
-    }
-  }), 345);
+    options: { size: 'Стандартная' }
+  }), /Конструктор временно недоступен/);
 });
 
 test('unknown products are rejected as unavailable', () => {
@@ -142,29 +172,34 @@ test('unknown products are rejected as unavailable', () => {
 
 test('unsupported combo modifiers are rejected', () => {
   assert.throws(() => serverItemPrice({
-    id: 'burger-combo',
-    name: 'Бургер Комбо',
-    options: { size: 'Стандартный', drink: 'Газировка', sauce: 'Несуществующий' }
+    id: 'student-combo',
+    name: 'Студенческое комбо',
+    options: { size: 'Комбо', main: 'Донер', side: 'Несуществующий' }
+  }), /Состав комбо изменился/);
+  assert.throws(() => serverItemPrice({
+    id: 'jelani-combo',
+    name: 'JELANI комбо',
+    options: { size: 'Комбо', side: 'Картофель фри маленький', sauce: 'Сырный' }
   }), /Состав комбо изменился/);
 });
 
 test('saved orders are repriced and validated on the server', () => {
   const saved = sanitizeSavedItems([
-    { id:'burger', name:'Бургер', price:1, qty:2 },
-    { id:'shawarma-combo', name:'Шаурма Комбо', price:1, qty:1, options:{
-      size:'Стандартный', meat:'Курица', drink:'Смузи', shawarmaSauces:[], friesSauce:'Томатный'
+    { id:'sandwich-jelani', name:'Сэндвич JELANI', price:1, qty:2 },
+    { id:'student-combo', name:'Студенческое комбо', price:1, qty:1, options:{
+      size:'Комбо', main:'Шаурма обычная', side:'Картофель фри средний'
     } }
   ]);
 
-  assert.equal(saved.items[0].price,270);
-  assert.equal(saved.items[1].price,410);
-  assert.equal(saved.total,950);
+  assert.equal(saved.items[0].price,259);
+  assert.equal(saved.items[1].price,399);
+  assert.equal(saved.total,917);
   assert.throws(()=>sanitizeSavedItems([{ id:'missing', name:'Нет в меню', qty:1 }]),/сейчас недоступна/);
 });
 
 test('bonus discounts are calculated on the server', () => {
   assert.equal(bonusDiscountValue('discount_5',1000),50);
-  assert.equal(bonusDiscountValue('free_sauce',500),35);
+  assert.equal(bonusDiscountValue('free_sauce',500),19);
   assert.equal(bonusDiscountValue('free_drink',500),90);
   assert.equal(bonusDiscountValue('double_points',500),0);
 });
@@ -213,7 +248,7 @@ test('Telegram login payload is sorted, signed and expires', async () => {
   assert.equal(await verifyTelegramPayload({ ...payload, first_name:'Другой' },botToken,now),false);
 });
 
-test('OAuth profiles are normalized for VK, OK and Mail.ru', () => {
+test('OAuth profiles are normalized for VK, OK, Mail.ru and Yandex ID', () => {
   const vk = normalizeOAuthProfile('vk',{}, {
     user:{ user_id:77,first_name:'Эмиль',last_name:'М.',phone:'+7 999 123-45-67',email:'e@example.ru' }
   });
@@ -231,33 +266,122 @@ test('OAuth profiles are normalized for VK, OK and Mail.ru', () => {
   const mail = normalizeOAuthProfile('mail',{ x_mailru_vid:'mail-42' },{});
   assert.equal(mail.providerUserId,'mail-42');
   assert.equal(mail.name,'MAIL пользователь');
+
+  const yandex = normalizeOAuthProfile('yandex',{}, {
+    id:'ya-42',first_name:'Анна',last_name:'Яндекс',default_email:'anna@yandex.ru',
+    default_phone:{ number:'+7 999 765-43-21' },default_avatar_id:'avatar-42',is_avatar_empty:false,
+    sex:'female',birthday:'1994-05-21'
+  });
+  assert.equal(yandex.providerUserId,'ya-42');
+  assert.equal(yandex.name,'Анна Яндекс');
+  assert.equal(yandex.email,'anna@yandex.ru');
+  assert.equal(yandex.phone,'79997654321');
+  assert.equal(yandex.avatarUrl,'https://avatars.yandex.net/get-yapic/avatar-42/islands-200');
+  assert.equal(yandex.raw.gender,'female');
+  assert.equal(yandex.raw.birthday,'1994-05-21');
 });
 
 test('auth config exposes availability without provider secrets', async () => {
-  const response = await worker.fetch(new Request('https://jjelani.ru/api/auth/config'), {
-    AUTH_SECRET:'0123456789abcdef0123456789abcdef',
-    SMSRU_API_ID:'sms-secret',
-    TELEGRAM_BOT_TOKEN:'telegram-secret',
-    TELEGRAM_BOT_USERNAME:'jelani_bot',
-    VK_CLIENT_ID:'vk-public-id',
-    VK_CLIENT_SECRET:'vk-secret',
-    OK_CLIENT_ID:'ok-public-id',
-    OK_CLIENT_SECRET:'ok-secret',
-    MAILRU_CLIENT_ID:'mail-public-id',
-    MAILRU_CLIENT_SECRET:'mail-secret',
-    MAX_BOT_TOKEN:'max-secret',
-    MAX_MINI_APP_URL:'https://max.ru/jelani'
-  });
-  const body = await response.json();
-  assert.equal(body.providers.phone.available,true);
-  assert.equal(body.providers.telegram.available,true);
-  assert.equal(body.providers.telegram.miniApp,true);
-  assert.equal(body.providers.vk.available,true);
-  assert.equal(body.providers.ok.available,true);
-  assert.equal(body.providers.mail.available,true);
-  assert.equal(body.providers.max.available,true);
-  assert.equal(body.providers.max.mode,'miniapp');
-  assert.equal(JSON.stringify(body).includes('secret'),false);
+  const d1=new TestD1();
+  try {
+    const response = await worker.fetch(new Request('https://jjelani.ru/api/auth/config'), {
+      DB:d1,
+      PERSONAL_DATA_LOCALIZED:'true',
+      AUTH_SECRET:'0123456789abcdef0123456789abcdef',
+      SMSRU_API_ID:'sms-secret',
+      TELEGRAM_BOT_TOKEN:'telegram-secret',
+      TELEGRAM_BOT_USERNAME:'jelani_bot',
+      YANDEX_CLIENT_ID:'yandex-public-id',
+      YANDEX_CLIENT_SECRET:'yandex-secret',
+      VK_CLIENT_ID:'vk-public-id',
+      VK_CLIENT_SECRET:'vk-secret',
+      OK_CLIENT_ID:'ok-public-id',
+      OK_CLIENT_SECRET:'ok-secret',
+      MAILRU_CLIENT_ID:'mail-public-id',
+      MAILRU_CLIENT_SECRET:'mail-secret',
+      MAX_BOT_TOKEN:'max-secret',
+      MAX_MINI_APP_URL:'https://max.ru/jelani'
+    });
+    const body = await response.json();
+    assert.equal(body.personalDataLocalized,true);
+    assert.equal(body.providers.phone.available,true);
+    assert.equal(body.providers.telegram.available,true);
+    assert.equal(body.providers.telegram.miniApp,true);
+    assert.equal(body.providers.yandex.available,true);
+    assert.equal(body.providers.vk.available,true);
+    assert.equal(body.providers.ok.available,true);
+    assert.equal(body.providers.mail.available,true);
+    assert.equal(body.providers.max.available,true);
+    assert.equal(body.providers.max.mode,'miniapp');
+    assert.equal(JSON.stringify(body).includes('secret'),false);
+  } finally {
+    d1.close();
+  }
+});
+
+test('production social login stays closed until personal data is localized in Russia', async () => {
+  const d1=new TestD1();
+  try {
+    const env={ DB:d1,YANDEX_CLIENT_ID:'yandex-public-id' };
+    const configResponse=await worker.fetch(new Request('https://jjelani.ru/api/auth/config'),env);
+    const config=await configResponse.json();
+    assert.equal(config.personalDataLocalized,false);
+    assert.equal(config.providers.yandex.available,false);
+    const startResponse=await worker.fetch(new Request('https://jjelani.ru/api/auth/oauth/start?provider=yandex'),env);
+    assert.equal(startResponse.status,503);
+    assert.match((await startResponse.json()).error,/хранения данных в России/);
+  } finally {
+    d1.close();
+  }
+});
+
+test('Yandex ID OAuth uses PKCE and the recommended profile authorization header', async () => {
+  const d1=new TestD1();
+  const originalFetch=globalThis.fetch;
+  let tokenBody='';
+  let profileAuthorization='';
+  try {
+    const env={ DB:d1,YANDEX_CLIENT_ID:'yandex-public-id' };
+    env.PERSONAL_DATA_LOCALIZED='true';
+    const startResponse=await worker.fetch(new Request('https://jjelani.ru/api/auth/oauth/start?provider=yandex'),env);
+    assert.equal(startResponse.status,200);
+    const start=await startResponse.json();
+    const authorize=new URL(start.url);
+    assert.equal(authorize.origin,'https://oauth.yandex.ru');
+    assert.equal(authorize.pathname,'/authorize');
+    assert.equal(authorize.searchParams.get('client_id'),'yandex-public-id');
+    assert.equal(authorize.searchParams.get('scope'),'login:info login:email login:avatar login:default_phone login:birthday');
+    assert.equal(authorize.searchParams.get('code_challenge_method'),'S256');
+    const state=authorize.searchParams.get('state');
+    assert.ok(state);
+
+    globalThis.fetch=async (url,options={})=>{
+      const target=String(url);
+      if(target==='https://oauth.yandex.ru/token'){
+        tokenBody=String(options.body||'');
+        return Response.json({ access_token:'yandex-access-token',token_type:'bearer' });
+      }
+      if(target==='https://login.yandex.ru/info'){
+        profileAuthorization=String(options.headers?.authorization||'');
+        return Response.json({ id:'ya-8800',first_name:'Анна',last_name:'Яндекс',default_email:'anna@yandex.ru' });
+      }
+      throw new Error(`Unexpected URL: ${target}`);
+    };
+    const callback=await worker.fetch(new Request(`https://jjelani.ru/api/auth/oauth/callback/yandex?code=ya-code&state=${encodeURIComponent(state)}`),env);
+    assert.equal(callback.status,302);
+    assert.match(tokenBody,/code_verifier=/);
+    assert.doesNotMatch(tokenBody,/redirect_uri=/);
+    assert.equal(profileAuthorization,'OAuth yandex-access-token');
+    const cookie=String(callback.headers.get('set-cookie')||'').split(';')[0];
+    const session=await worker.fetch(new Request('https://jjelani.ru/api/auth/session',{ headers:{ cookie } }),env);
+    const sessionBody=await session.json();
+    assert.equal(sessionBody.authenticated,true);
+    assert.equal(sessionBody.profile.name,'Анна Яндекс');
+    assert.deepEqual(sessionBody.profile.loginMethods,['yandex']);
+  } finally {
+    globalThis.fetch=originalFetch;
+    d1.close();
+  }
 });
 
 test('OK OAuth start uses state and PKCE and callback creates a session', async () => {
@@ -265,7 +389,7 @@ test('OK OAuth start uses state and PKCE and callback creates a session', async 
   const originalFetch=globalThis.fetch;
   let tokenBody='';
   try {
-    const env={ DB:d1,OK_CLIENT_ID:'ok-public-id' };
+    const env={ DB:d1,OK_CLIENT_ID:'ok-public-id',PERSONAL_DATA_LOCALIZED:'true' };
     const startResponse=await worker.fetch(new Request('https://jjelani.ru/api/auth/oauth/start?provider=ok'),env);
     assert.equal(startResponse.status,200);
     const start=await startResponse.json();
@@ -374,7 +498,7 @@ test('Telegram WebApp initData is signed, expires and creates a server session',
       method:'POST',
       headers:{ 'content-type':'application/json','x-device-token':'c'.repeat(64) },
       body:JSON.stringify({ initData })
-    }),{ DB:d1,TELEGRAM_BOT_TOKEN:botToken });
+    }),{ DB:d1,PERSONAL_DATA_LOCALIZED:'true',TELEGRAM_BOT_TOKEN:botToken });
     assert.equal(response.status,200);
     const body=await response.json();
     assert.equal(body.profile.name,'Emil JELANI');
@@ -401,7 +525,7 @@ test('MAX WebAppData is signed, expires and creates a server session', async () 
 
     const response=await worker.fetch(new Request('https://jjelani.ru/api/auth/max',{
       method:'POST',headers:{ 'content-type':'application/json','x-device-token':'b'.repeat(64) },body:JSON.stringify({ initData })
-    }),{ DB:d1,MAX_BOT_TOKEN:botToken });
+    }),{ DB:d1,PERSONAL_DATA_LOCALIZED:'true',MAX_BOT_TOKEN:botToken });
     assert.equal(response.status,200);
     const body=await response.json();
     assert.equal(body.profile.name,'Максим JELANI');
@@ -444,6 +568,22 @@ test('electronic receipt keeps the exact discounted order total', () => {
   assert.throws(()=>yookassaPaymentPayload({ ...order,email:'' },'https://jjelani.ru/',env),/email/);
 });
 
+test('YooKassa receipt adds the fixed delivery fee as a separate service', () => {
+  const order={
+    id:'JL-7654324',paymentCode:'sbp',email:'client@example.ru',deliveryFee:149,total:609,
+    items:[{ name:'Бургер',price:270,qty:1 },{ name:'Картофель фри',price:125,qty:1 },{ name:'Напиток',price:90,qty:1 }]
+  };
+  const env={ YOOKASSA_RECEIPTS:'true',YOOKASSA_VAT_CODE:'1',YOOKASSA_PAYMENT_SUBJECT:'commodity' };
+  const items=yookassaReceiptItems(order,env);
+  const receiptTotal=items.reduce((sum,item)=>sum+moneyKopecks(item.amount.value)*Number(item.quantity),0);
+  const delivery=items.find(item=>item.description==='Доставка заказа');
+
+  assert.equal(receiptTotal,60900);
+  assert.equal(delivery.amount.value,'149.00');
+  assert.equal(delivery.payment_subject,'service');
+  assert.equal(delivery.vat_code,1);
+});
+
 test('provider payment is accepted only for the same order, RUB amount and provider id', () => {
   const order = { id:'JL-7654323',providerPaymentId:'pay-test-3',total:510 };
   const payment = {
@@ -462,6 +602,7 @@ test('provider payment is accepted only for the same order, RUB amount and provi
 test('payment config exposes methods but never YooKassa secret', async () => {
   const response = await worker.fetch(new Request('https://jjelani.ru/api/payment/config'), {
     DB:{},
+    PERSONAL_DATA_LOCALIZED:'true',
     YOOKASSA_SHOP_ID:'shop-42',
     YOOKASSA_SECRET_KEY:'yoo-secret',
     YOOKASSA_PAYMENT_METHODS:'bank_card,sbp',
@@ -477,16 +618,32 @@ test('payment config exposes methods but never YooKassa secret', async () => {
   assert.equal(JSON.stringify(body).includes('yoo-secret'),false);
 });
 
+test('payment config keeps ordering closed until Russian data localization is confirmed', async () => {
+  const response=await worker.fetch(new Request('https://jjelani.ru/api/payment/config'),{
+    DB:{},
+    YOOKASSA_SHOP_ID:'shop-42',
+    YOOKASSA_SECRET_KEY:'yoo-secret',
+    TELEGRAM_BOT_TOKEN:'telegram-secret',
+    TELEGRAM_CHAT_ID:'123456'
+  });
+  const body=await response.json();
+  assert.equal(body.personalDataLocalized,false);
+  assert.equal(body.available,false);
+  assert.deepEqual(body.methods,{ bankCard:false,sbp:false,cash:false });
+});
+
 test('health reports configured auth providers and online payment readiness', async () => {
   const d1=new TestD1();
   try {
     const response=await worker.fetch(new Request('https://jjelani.ru/api/health'),{
       DB:d1,
+      PERSONAL_DATA_LOCALIZED:'true',
       AUTH_SECRET:'0123456789abcdef0123456789abcdef',
       SMSRU_API_ID:'sms-secret',
       TELEGRAM_BOT_TOKEN:'telegram-secret',
       TELEGRAM_BOT_USERNAME:'jelani_bot',
       TELEGRAM_CHAT_ID:'123456',
+      YANDEX_CLIENT_ID:'yandex-client',
       VK_CLIENT_ID:'vk-client',
       OK_CLIENT_ID:'ok-client',
       MAILRU_CLIENT_ID:'mail-client',
@@ -498,9 +655,11 @@ test('health reports configured auth providers and online payment readiness', as
     });
     const body=await response.json();
     assert.equal(body.database,true);
-    assert.deepEqual(body.authProviders,{ phone:true,telegram:true,vk:true,ok:true,mail:true,max:true });
+    assert.equal(body.personalDataLocalized,true);
+    assert.deepEqual(body.authProviders,{ phone:true,telegram:true,vk:true,ok:true,mail:true,yandex:true,max:true });
     assert.equal(body.telegramWebAppConfigured,true);
     assert.equal(body.onlinePaymentConfigured,true);
+    assert.equal(body.orderingAvailable,true);
     assert.equal(body.paymentProvider,'yookassa');
     assert.deepEqual(body.paymentMethods,['bank_card','sbp','cash']);
     assert.equal(JSON.stringify(body).includes('secret'),false);
@@ -517,7 +676,7 @@ test('paid webhook and full refund stay idempotent end to end', async () => {
   let failNextPayment=false;
   let payment={
     id:'pay-integration-1',status:'pending',paid:false,
-    amount:{ value:'270.00',currency:'RUB' },
+    amount:{ value:'239.00',currency:'RUB' },
     refunded_amount:{ value:'0.00',currency:'RUB' },
     metadata:{ order_id:'JL-1234567-0421' },
     confirmation:{ type:'redirect',confirmation_url:'https://yookassa.test/confirm' }
@@ -525,6 +684,7 @@ test('paid webhook and full refund stay idempotent end to end', async () => {
   let refund=null;
   const env={
     DB:d1,
+    PERSONAL_DATA_LOCALIZED:'true',
     YOOKASSA_SHOP_ID:'shop-integration',
     YOOKASSA_SECRET_KEY:'secret-integration',
     YOOKASSA_PAYMENT_METHODS:'bank_card,sbp',
@@ -541,7 +701,7 @@ test('paid webhook and full refund stay idempotent end to end', async () => {
         return Response.json({ type:'server_error',code:'temporarily_unavailable' },{ status:503 });
       }
       const body=JSON.parse(init.body);
-      assert.equal(body.amount.value,'270.00');
+      assert.equal(body.amount.value,'239.00');
       assert.equal(body.metadata.order_id,'JL-1234567-0421');
       return Response.json(payment);
     }
@@ -550,10 +710,10 @@ test('paid webhook and full refund stay idempotent end to end', async () => {
       refundCreates+=1;
       refund={
         id:'refund-integration-1',payment_id:'pay-integration-1',status:'succeeded',
-        amount:{ value:'270.00',currency:'RUB' },
+        amount:{ value:'239.00',currency:'RUB' },
         metadata:{ request_id:'refund-test-0001',order_id:'JL-1234567-0421' }
       };
-      payment={ ...payment,refunded_amount:{ value:'270.00',currency:'RUB' } };
+      payment={ ...payment,refunded_amount:{ value:'239.00',currency:'RUB' } };
       return Response.json(refund);
     }
     if(url.endsWith('/v3/refunds/refund-integration-1')) return Response.json(refund);
@@ -572,7 +732,8 @@ test('paid webhook and full refund stay idempotent end to end', async () => {
       body:JSON.stringify({
         id:'JL-1234567-0421',trackingToken:'0123456789abcdef0123456789abcdef',
         name:'Тест',phone:'+7 900 000-00-00',delivery:'Самовывоз',payment:'bank_card',
-        items:[{ id:'burger',name:'Бургер',qty:1 }]
+        legalConsent:LEGAL_CONSENT,
+        items:[{ id:'shawarma-regular',name:'Шаурма обычная',qty:1 }]
       })
     }),env);
     const pending=await orderResponse.json();
@@ -605,7 +766,8 @@ test('paid webhook and full refund stay idempotent end to end', async () => {
       body:JSON.stringify({
         id:'JL-1234568-0422',trackingToken:'1123456789abcdef0123456789abcdef',
         name:'Тест',phone:'+7 900 000-00-00',delivery:'Самовывоз',payment:'bank_card',
-        items:[{ id:'burger',name:'Бургер',qty:1 }]
+        legalConsent:LEGAL_CONSENT,
+        items:[{ id:'shawarma-regular',name:'Шаурма обычная',qty:1 }]
       })
     }),env);
     const failedPayment=await failedPaymentResponse.json();
@@ -629,7 +791,8 @@ test('paid webhook and full refund stay idempotent end to end', async () => {
       body:JSON.stringify({
         id:'JL-1234568-0422',trackingToken:'1123456789abcdef0123456789abcdef',
         name:'Тест',phone:'+7 900 000-00-00',delivery:'Самовывоз',payment:'bank_card',
-        items:[{ id:'burger',name:'Бургер',qty:1 }]
+        legalConsent:LEGAL_CONSENT,
+        items:[{ id:'shawarma-regular',name:'Шаурма обычная',qty:1 }]
       })
     }),env);
     assert.equal(expiredRetry.status,400);
@@ -649,7 +812,7 @@ test('paid webhook and full refund stay idempotent end to end', async () => {
     const firstRefund=await (await worker.fetch(refundRequest(),env)).json();
     assert.equal(firstRefund.ok,true);
     assert.equal(firstRefund.duplicate,false);
-    assert.equal(firstRefund.refundedAmount,270);
+    assert.equal(firstRefund.refundedAmount,239);
     assert.equal(refundCreates,1);
     assert.equal(d1.value("SELECT payment_status AS status FROM orders WHERE id = 'JL-1234567-0421'").status,'refunded');
 
@@ -662,7 +825,8 @@ test('paid webhook and full refund stay idempotent end to end', async () => {
     const cashOrderBody={
       id:'JL-1234569-0423',trackingToken:'2123456789abcdef0123456789abcdef',
       name:'Тест',phone:'+7 900 000-00-00',delivery:'Самовывоз',payment:'cash',
-      items:[{ id:'burger',name:'Бургер',qty:1 }]
+      legalConsent:LEGAL_CONSENT,
+      items:[{ id:'shawarma-regular',name:'Шаурма обычная',qty:1 }]
     };
     const createCashOrder=()=>worker.fetch(new Request('https://jjelani.ru/api/order',{
       method:'POST',
@@ -694,15 +858,30 @@ test('session endpoint is anonymous when D1 is not bound', async () => {
   assert.deepEqual(await response.json(),{ ok:true,authenticated:false });
 });
 
+test('order endpoint rejects a combined or missing legal consent before processing', async () => {
+  const response=await worker.fetch(new Request('https://jjelani.ru/api/order',{
+    method:'POST',
+    headers:{ 'content-type':'application/json' },
+    body:JSON.stringify({
+      id:'JL-1234571',trackingToken:'4123456789abcdef0123456789abcdef',
+      name:'Тест',phone:'+7 900 000-00-00',delivery:'Самовывоз',payment:'cash',
+      items:[{ id:'shawarma-regular',name:'Шаурма обычная',qty:1 }]
+    })
+  }),{ PERSONAL_DATA_LOCALIZED:'true' });
+  assert.equal(response.status,400);
+  assert.equal((await response.json()).error,'Нужно отдельно принять оферту и согласие на обработку персональных данных.');
+});
+
 test('cash is rejected for delivery before an order is created', async () => {
   const response=await worker.fetch(new Request('https://jjelani.ru/api/order',{
     method:'POST',headers:{ 'content-type':'application/json' },
     body:JSON.stringify({
       id:'JL-1234570',trackingToken:'3123456789abcdef0123456789abcdef',
       name:'Тест',phone:'+7 900 000-00-00',delivery:'Доставка',address:'Улица, 1',payment:'cash',
-      items:[{ id:'burger',name:'Бургер',qty:1 }]
+      legalConsent:LEGAL_CONSENT,
+      items:[{ id:'shawarma-regular',name:'Шаурма обычная',qty:1 }]
     })
-  }),{});
+  }),{ PERSONAL_DATA_LOCALIZED:'true' });
   assert.equal(response.status,400);
   assert.equal((await response.json()).error,'Оплата наличными доступна только при самовывозе.');
 });
@@ -718,9 +897,10 @@ test('production order endpoint stays blocked until ordering backend is configur
       phone: '+7 900 000-00-00',
       delivery: 'Самовывоз',
       payment: 'bank_card',
-      items: [{ id: 'burger', name: 'Бургер', qty: 1 }]
+      legalConsent: LEGAL_CONSENT,
+      items: [{ id: 'shawarma-regular', name: 'Шаурма обычная', qty: 1 }]
     })
-  }), {});
+  }), { PERSONAL_DATA_LOCALIZED:'true' });
 
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), {

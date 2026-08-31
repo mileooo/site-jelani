@@ -1,4 +1,5 @@
 .env
+.secrets/
 .wrangler/
 *.log
 server.stdout.log

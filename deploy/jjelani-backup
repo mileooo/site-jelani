@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+database_path="/var/lib/jjelani/jjelani.sqlite"
+backup_dir="/var/backups/jjelani"
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+temporary_path="${backup_dir}/.jjelani-${timestamp}.sqlite"
+backup_path="${backup_dir}/jjelani-${timestamp}.sqlite.gz"
+
+install -d -m 750 "$backup_dir"
+test -s "$database_path"
+
+cleanup() {
+  rm -f "$temporary_path" "${temporary_path}.gz"
+}
+trap cleanup EXIT
+
+sqlite3 "$database_path" ".backup '${temporary_path}'"
+gzip -9 "$temporary_path"
+mv "${temporary_path}.gz" "$backup_path"
+sha256sum "$backup_path" > "${backup_path}.sha256"
+
+# Keep one week of daily backups and their checksums.
+find "$backup_dir" -type f \
+  \( -name 'jjelani-*.sqlite.gz' -o -name 'jjelani-*.sqlite.gz.sha256' \) \
+  -mtime +7 -delete

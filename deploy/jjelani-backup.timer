@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily JELANI database backup
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+Persistent=true
+RandomizedDelaySec=30m
+Unit=jjelani-backup.service
+
+[Install]
+WantedBy=timers.target

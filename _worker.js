@@ -7,6 +7,8 @@ const AUTH_SESSION_SECONDS = 60 * 60 * 24 * 30;
 const AUTH_OTP_SECONDS = 5 * 60;
 const AUTH_OTP_MAX_ATTEMPTS = 5;
 const AUTH_PROVIDER_PAYLOAD_SECONDS = 10 * 60;
+const DELIVERY_MINIMUM_RUB = 579;
+const DELIVERY_FEE_RUB = 149;
 
 const databaseSchemaReady = new WeakMap();
 
@@ -33,6 +35,10 @@ const DATABASE_SCHEMA = [
     delivery_method TEXT NOT NULL,
     address TEXT NOT NULL DEFAULT '',
     customer_email TEXT NOT NULL DEFAULT '',
+    offer_version TEXT NOT NULL DEFAULT '',
+    offer_accepted_at TEXT NOT NULL DEFAULT '',
+    personal_data_consent_version TEXT NOT NULL DEFAULT '',
+    personal_data_consent_at TEXT NOT NULL DEFAULT '',
     payment_method TEXT NOT NULL,
     payment_provider TEXT NOT NULL DEFAULT '',
     payment_status TEXT NOT NULL DEFAULT 'pending',
@@ -53,6 +59,7 @@ const DATABASE_SCHEMA = [
     promo_code TEXT NOT NULL DEFAULT '',
     subtotal INTEGER NOT NULL DEFAULT 0,
     discount INTEGER NOT NULL DEFAULT 0,
+    delivery_fee INTEGER NOT NULL DEFAULT 0,
     applied_bonus_id TEXT NOT NULL DEFAULT '',
     bonus_discount INTEGER NOT NULL DEFAULT 0,
     points_earned INTEGER NOT NULL DEFAULT 0,
@@ -296,6 +303,11 @@ const DATABASE_MIGRATIONS = [
   ,"ALTER TABLE orders ADD COLUMN inventory_committed_at TEXT NOT NULL DEFAULT ''"
   ,"ALTER TABLE orders ADD COLUMN refunded_amount INTEGER NOT NULL DEFAULT 0"
   ,"ALTER TABLE orders ADD COLUMN refund_status TEXT NOT NULL DEFAULT ''"
+  ,"ALTER TABLE orders ADD COLUMN offer_version TEXT NOT NULL DEFAULT ''"
+  ,"ALTER TABLE orders ADD COLUMN offer_accepted_at TEXT NOT NULL DEFAULT ''"
+  ,"ALTER TABLE orders ADD COLUMN personal_data_consent_version TEXT NOT NULL DEFAULT ''"
+  ,"ALTER TABLE orders ADD COLUMN personal_data_consent_at TEXT NOT NULL DEFAULT ''"
+  ,"ALTER TABLE orders ADD COLUMN delivery_fee INTEGER NOT NULL DEFAULT 0"
   ,"ALTER TABLE user_bonuses ADD COLUMN reserved_order_id TEXT NOT NULL DEFAULT ''"
   ,"ALTER TABLE user_bonuses ADD COLUMN reserved_at TEXT"
 ];
@@ -343,77 +355,46 @@ const ADMIN_ACTIONS = {
 };
 
 const FIXED_ITEM_PRICES = Object.freeze({
-  burger: 270,
-  'shawarma-small-chicken': 190,
-  'shawarma-small-beef': 225,
-  'shawarma-standard-chicken': 240,
-  'shawarma-standard-beef': 275,
-  'shawarma-large-chicken': 290,
-  'shawarma-large-beef': 325,
-  'doner-chicken': 230,
-  'doner-beef': 270,
-  gyros: 250,
-  pita: 240,
-  'open-shawarma': 320,
-  quesadilla: 290,
-  'sandwich-chicken': 240,
-  'sandwich-ham': 230,
-  'fried-sandwich': 230,
-  'american-sandwich': 310,
-  'cross-sandwich-chicken': 260,
-  'cross-sandwich-ham': 250,
-  'ciabatta-sandwich': 290,
-  'fried-toasties': 190,
-  hotdog: 180,
-  fries: 110,
-  nuggets: 160,
-  'onion-rings': 130,
-  wings: 240,
-  'garlic-croutons': 130,
-  'fish-nuggets': 190,
-  'caesar-salad': 230,
-  'caucasian-salad': 180,
-  'big-hit-salad': 250,
-  'chips-salad': 230,
-  'vienna-waffle': 170,
-  syrniki: 190,
-  'baklava-icecream': 220,
-  napoleon: 160,
-  medovik: 160,
-  donuts: 130,
-  smoothie: 170,
-  milkshake: 160,
-  soda: 90,
-  juice: 80,
-  tea: 70,
-  coffee: 110,
-  duet: 890,
-  'burger-pair': 960,
-  'sandwich-box': 1390,
-  east: 1290,
-  crispy: 1390,
-  family: 1790,
-  'salad-lunch': 790,
-  'sweet-table': 1190,
-  'upsell-fries': 79,
-  'upsell-drink': 69,
-  'upsell-sauce': 35,
-  'upsell-cheese': 35
+  'sandwich-jelani': 259,
+  'shawarma-cheese': 249,
+  'shawarma-regular': 239,
+  doner: 249,
+  hotdog: 139,
+  'pancake-nutella-banana': 129,
+  'pancake-nutella-raspberry': 139,
+  'pancake-condensed': 89,
+  'pancake-boiled-condensed-nuts': 99,
+  'pancake-cheese': 89,
+  'pancake-ham-cheese': 109,
+  'sandwich-sausage-box': 139,
+  'sandwich-chicken-box': 139,
+  'fried-sandwiches-box': 149,
+  'nuggets-6': 119,
+  'nuggets-9': 139,
+  'onion-rings-6': 67,
+  'onion-rings-9': 99,
+  'fries-small': 79,
+  'fries-medium': 99,
+  'fries-large': 119,
+  'cake-slice': 149,
+  'smoothie-strawberry-banana': 179,
+  'smoothie-raspberry-banana': 199,
+  'smoothie-wild-strawberry-banana': 219,
+  'smoothie-pear-banana': 169,
+  'smoothie-pear-wild-strawberry': 209,
+  tea: 39,
+  coffee: 39,
+  'sauce-сырный': 19,
+  'sauce-чесночный': 19,
+  'sauce-барбекю': 19,
+  'sauce-кетчуп': 19,
+  'sauce-бургер': 19,
+  'sauce-острый': 19
 });
 
 const COMBO_PRICES = Object.freeze({
-  'shawarma-combo': { 'Стандартный': 410, 'Большой': 490 },
-  'burger-combo': { 'Стандартный': 430, 'Большой': 510 },
-  'doner-combo': { 'Стандартный': 410, 'Большой': 490 },
-  'wings-combo': { '6 крыльев': 490, '9 крыльев': 620 },
-  'gyros-combo': { 'Стандартный': 420, 'Большой': 500 },
-  'sandwich-combo': { 'Стандартный': 400, 'Большой': 480 },
-  'hotdog-combo': { 'Стандартный': 330, 'Большой': 410 },
-  'fish-combo': { '6 наггетсов': 390, '9 наггетсов': 470 },
-  'quesadilla-combo': { 'Стандартный': 440, 'Большой': 540 },
-  'morning-combo': { 'Стандартный': 320 },
-  'sweet-combo': { 'Стандартный': 280 },
-  'mega-combo': { 'На двоих': 890 }
+  'student-combo': { 'Комбо': 399 },
+  'jelani-combo': { 'Комбо': 410 }
 });
 
 const BUILDER_PRICES = Object.freeze({
@@ -429,42 +410,19 @@ const BUILDER_PRICES = Object.freeze({
   }
 });
 
-const SERVER_SAUCES = new Set([
-  'Томатный', 'Чесночный', 'Аджика', '1000 островов', 'Кавказский',
-  'Чили', 'Сырный', 'Кисло-сладкий', 'Мацони', 'Наршараб'
-]);
-
-const SERVER_DRINKS = new Set(['Смузи', 'Коктейль', 'Газировка', 'Сок', 'Чай', 'Кофе']);
-const SERVER_MEATS = new Set(['Курица', 'Говядина']);
-const SERVER_SANDWICHES = new Set([
-  'Сэндвич с курицей', 'Сэндвич с ветчиной', 'Жареный сэндвич',
-  'Американский сэндвич', 'Перекрестный с курицей',
-  'Перекрестный с ветчиной', 'Чиабатта-сэндвич'
-]);
+const SERVER_SAUCES = new Set(['Сырный', 'Чесночный', 'Барбекю', 'Кетчуп', 'Бургер', 'Острый']);
+const SERVER_COMBO_MAINS = new Set(['Шаурма обычная', 'Шаурма в сырном', 'Донер']);
+const SERVER_COMBO_SIDE_LARGE = new Set(['Картофель фри средний', 'Луковые кольца 9 шт.']);
+const SERVER_COMBO_SIDE_SMALL = new Set(['Картофель фри маленький', 'Луковые кольца 6 шт.']);
 
 const COMBO_OPTION_RULES = {
-  'shawarma-combo': {
-    meat: [SERVER_MEATS, 1, 1], drink: [SERVER_DRINKS, 1, 1],
-    shawarmaSauces: [SERVER_SAUCES, 0, 10], friesSauce: [SERVER_SAUCES, 1, 1]
+  'student-combo': {
+    main: [SERVER_COMBO_MAINS, 1, 1],
+    side: [SERVER_COMBO_SIDE_LARGE, 1, 1]
   },
-  'burger-combo': { drink: [SERVER_DRINKS, 1, 1], sauce: [SERVER_SAUCES, 1, 1] },
-  'doner-combo': { meat: [SERVER_MEATS, 1, 1], drink: [SERVER_DRINKS, 1, 1], sauce: [SERVER_SAUCES, 1, 1] },
-  'wings-combo': { drink: [SERVER_DRINKS, 1, 1], twoSauces: [SERVER_SAUCES, 2, 2] },
-  'gyros-combo': { drink: [SERVER_DRINKS, 1, 1], sauce: [new Set(['Мацони', 'Чесночный']), 1, 1] },
-  'sandwich-combo': { sandwich: [SERVER_SANDWICHES, 1, 1], drink: [SERVER_DRINKS, 1, 1], sauce: [SERVER_SAUCES, 1, 1] },
-  'hotdog-combo': { drink: [SERVER_DRINKS, 1, 1], sauce: [SERVER_SAUCES, 1, 1] },
-  'fish-combo': { drink: [SERVER_DRINKS, 1, 1], sauce: [new Set(['Кисло-сладкий', 'Чесночный']), 1, 1] },
-  'quesadilla-combo': { side: [new Set(['Картофель фри', 'Луковые кольца']), 1, 1], drink: [SERVER_DRINKS, 1, 1], sauce: [SERVER_SAUCES, 1, 1] },
-  'morning-combo': {
-    morningBase: [new Set(['Сырники', 'Венские вафли']), 1, 1],
-    morningHot: [new Set(['Кофе', 'Чай']), 1, 1],
-    morningCold: [new Set(['Смузи', 'Сок']), 1, 1]
-  },
-  'sweet-combo': {
-    sweetBase: [new Set(['Пахлава с мороженым', 'Пончики', 'Наполеон', 'Медовик']), 1, 1],
-    sweetDrink: [new Set(['Кофе', 'Чай']), 1, 1]
-  },
-  'mega-combo': { meat: [SERVER_MEATS, 1, 1], drink: [SERVER_DRINKS, 1, 1], twoSauces: [SERVER_SAUCES, 2, 2] }
+  'jelani-combo': {
+    side: [SERVER_COMBO_SIDE_SMALL, 1, 1]
+  }
 };
 
 const BUILDER_VEGETABLES = {
@@ -582,6 +540,10 @@ function validateOptionList(values, allowed, min, max) {
 
 function validateComboOptions(id, options) {
   const rules = COMBO_OPTION_RULES[id] || {};
+  const allowedKeys = new Set(['size', ...Object.keys(rules)]);
+  if (Object.keys(options || {}).some(key => !allowedKeys.has(key))) {
+    throw new ValidationError('Состав комбо изменился. Соберите его заново.');
+  }
   for (const [key, [allowed, min, max]] of Object.entries(rules)) {
     if (!validateOptionList(optionList(options, key), allowed, min, max)) {
       throw new ValidationError('Состав комбо изменился. Соберите его заново.');
@@ -599,7 +561,6 @@ function serverItemPrice(item) {
   if (Object.prototype.hasOwnProperty.call(FIXED_ITEM_PRICES, id)) {
     return FIXED_ITEM_PRICES[id];
   }
-  if (/^sauce-(?:[0-9])$/.test(id)) return 35;
 
   const combo = COMBO_PRICES[id];
   if (combo) {
@@ -612,26 +573,7 @@ function serverItemPrice(item) {
   }
 
   if (id === 'custom-shawarma' || id === 'custom-sandwich') {
-    const type = id.slice('custom-'.length);
-    const pricing = BUILDER_PRICES[type];
-    const options = item.options || {};
-    const size = optionValue(options, 'size');
-    const meat = optionValue(options, 'meat');
-    const sauces = optionList(options, 'sauces');
-    const extras = optionList(options, 'extras');
-    const veggies = optionList(options, 'veggies');
-
-    if (!Object.prototype.hasOwnProperty.call(pricing.sizes, size) ||
-        !Object.prototype.hasOwnProperty.call(pricing.meats, meat) ||
-        !validateOptionList(sauces, SERVER_SAUCES, 0, SERVER_SAUCES.size) ||
-        !validateOptionList(veggies, BUILDER_VEGETABLES[type], 0, BUILDER_VEGETABLES[type].size) ||
-        !validateOptionList(extras, new Set(Object.keys(pricing.extras)), 0, Object.keys(pricing.extras).length)) {
-      throw new ValidationError('Состав позиции изменился. Соберите её заново.');
-    }
-
-    const extrasTotal = extras.reduce((sum, extra) => sum + pricing.extras[extra], 0);
-    const extraSauces = Math.max(0, sauces.length - 2) * 35;
-    return pricing.sizes[size] + pricing.meats[meat] + extrasTotal + extraSauces;
+    throw new ValidationError('Конструктор временно недоступен. Выберите позицию из действующего меню.');
   }
 
   throw new ValidationError(`Позиция «${String(item?.name || id)}» сейчас недоступна`);
@@ -905,7 +847,7 @@ async function accountOrders(env, owner) {
   const ordersResult = await env.DB.prepare(`SELECT id, customer_name AS customerName, phone, customer_email AS email,
     delivery_method AS delivery, address, payment_method AS payment, payment_status AS paymentStatus,
     refunded_amount AS refundedAmount, refund_status AS refundStatus,
-    comment, promo_code AS promo, subtotal, discount, total,
+    comment, promo_code AS promo, subtotal, discount, delivery_fee AS deliveryFee, total,
     status_index AS statusIndex, status, status_detail AS statusDetail, canceled, terminal,
     created_at AS createdAt, updated_at AS updatedAt
     FROM orders WHERE owner_token_hash = ? ORDER BY created_at DESC LIMIT 50`).bind(owner).all();
@@ -943,6 +885,7 @@ async function accountOrders(env, owner) {
     promo:row.promo || '',
     subtotal:Number(row.subtotal || 0),
     discount:Number(row.discount || 0),
+    deliveryFee:Number(row.deliveryFee || 0),
     total:Number(row.total || 0),
     statusIndex:Number(row.statusIndex || 0),
     status:row.status,
@@ -1017,6 +960,7 @@ async function sendSmsCode(env, phone, code, ip) {
 
 async function handlePhoneCodeRequest(request, env) {
   if (request.method !== 'POST') return json({ ok:false, error:'Method not allowed' },405);
+  requireLocalizedPersonalData(request,env);
   if (!env.DB) throw new ServiceUnavailableError('Вход по телефону временно недоступен.');
   const secret = requireAuthSecret(env);
   await ensureDatabase(env);
@@ -1064,6 +1008,7 @@ async function handlePhoneCodeRequest(request, env) {
 
 async function handlePhoneCodeVerify(request, env) {
   if (request.method !== 'POST') return json({ ok:false, error:'Method not allowed' },405);
+  requireLocalizedPersonalData(request,env);
   if (!env.DB) throw new ServiceUnavailableError('Вход по телефону временно недоступен.');
   const secret = requireAuthSecret(env);
   await ensureDatabase(env);
@@ -1129,6 +1074,7 @@ async function verifyTelegramPayload(payload, botToken, nowSeconds = Math.floor(
 
 async function handleTelegramAuth(request, env) {
   if (request.method !== 'POST') return json({ ok:false, error:'Method not allowed' },405);
+  requireLocalizedPersonalData(request,env);
   if (!env.DB || !env.TELEGRAM_BOT_TOKEN) throw new ServiceUnavailableError('Вход через Telegram пока настраивается.');
   await ensureDatabase(env);
   const payload = await request.json();
@@ -1206,6 +1152,7 @@ async function verifyTelegramWebAppData(initData, botToken, nowSeconds = Math.fl
 
 async function handleTelegramWebAppAuth(request, env) {
   if (request.method !== 'POST') return json({ ok:false, error:'Method not allowed' },405);
+  requireLocalizedPersonalData(request,env);
   if (!env.DB || !env.TELEGRAM_BOT_TOKEN) throw new ServiceUnavailableError('Вход через Telegram пока настраивается.');
   await ensureDatabase(env);
   const body = await request.json().catch(()=>({}));
@@ -1261,6 +1208,7 @@ async function verifyMaxWebAppData(initData, botToken, nowSeconds = Math.floor(D
 
 async function handleMaxAuth(request, env) {
   if (request.method !== 'POST') return json({ ok:false, error:'Method not allowed' },405);
+  requireLocalizedPersonalData(request,env);
   if (!env.DB || !env.MAX_BOT_TOKEN) throw new ServiceUnavailableError('Вход через MAX пока настраивается.');
   await ensureDatabase(env);
   const body = await request.json().catch(()=>({}));
@@ -1315,6 +1263,18 @@ function oauthProvider(env, provider) {
       pkce:false,
       userInfoMethod:'bearer'
     },
+    yandex:{
+      label:'Яндекс ID',
+      clientId:String(env.YANDEX_CLIENT_ID || ''),
+      clientSecret:String(env.YANDEX_CLIENT_SECRET || ''),
+      authUrl:String(env.YANDEX_AUTH_URL || 'https://oauth.yandex.ru/authorize'),
+      tokenUrl:String(env.YANDEX_TOKEN_URL || 'https://oauth.yandex.ru/token'),
+      userInfoUrl:String(env.YANDEX_USERINFO_URL || 'https://login.yandex.ru/info'),
+      scope:String(env.YANDEX_SCOPE || 'login:info login:email login:avatar login:default_phone login:birthday'),
+      pkce:true,
+      tokenRedirectUri:false,
+      userInfoMethod:'yandex'
+    },
     max:{
       label:'MAX',
       clientId:String(env.MAX_CLIENT_ID || ''),
@@ -1329,26 +1289,29 @@ function oauthProvider(env, provider) {
   };
   const config = configs[provider];
   if (!config) return null;
-  const available = Boolean(config.clientId && config.authUrl && config.tokenUrl && (['vk','ok'].includes(provider) || config.clientSecret));
+  const available = Boolean(config.clientId && config.authUrl && config.tokenUrl && (['vk','ok','yandex'].includes(provider) || config.clientSecret));
   return { ...config, provider, available };
 }
 
 function handleAuthConfig(request, env) {
   const development = authDevelopmentMode(request,env);
+  const processingAllowed = Boolean(env.DB && (personalDataLocalizationConfirmed(env) || development));
   return json({
     ok:true,
+    personalDataLocalized:personalDataLocalizationConfirmed(env),
     providers:{
-      phone:{ available:Boolean(env.SMSRU_API_ID || development) && String(env.AUTH_SECRET || '').length >= 32 },
+      phone:{ available:processingAllowed && Boolean(env.SMSRU_API_ID || development) && String(env.AUTH_SECRET || '').length >= 32 },
       telegram:{
-        available:Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_BOT_USERNAME),
+        available:processingAllowed && Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_BOT_USERNAME),
         botUsername:String(env.TELEGRAM_BOT_USERNAME || ''),
-        miniApp:Boolean(env.TELEGRAM_BOT_TOKEN)
+        miniApp:processingAllowed && Boolean(env.TELEGRAM_BOT_TOKEN)
       },
-      vk:{ available:Boolean(oauthProvider(env,'vk')?.available) },
-      ok:{ available:Boolean(oauthProvider(env,'ok')?.available) },
-      mail:{ available:Boolean(oauthProvider(env,'mail')?.available) },
+      vk:{ available:processingAllowed && Boolean(oauthProvider(env,'vk')?.available) },
+      ok:{ available:processingAllowed && Boolean(oauthProvider(env,'ok')?.available) },
+      mail:{ available:processingAllowed && Boolean(oauthProvider(env,'mail')?.available) },
+      yandex:{ available:processingAllowed && Boolean(oauthProvider(env,'yandex')?.available) },
       max:{
-        available:Boolean(env.MAX_BOT_TOKEN || oauthProvider(env,'max')?.available),
+        available:processingAllowed && Boolean(env.MAX_BOT_TOKEN || oauthProvider(env,'max')?.available),
         mode:env.MAX_BOT_TOKEN ? 'miniapp' : 'oauth',
         launchUrl:String(env.MAX_MINI_APP_URL || '')
       }
@@ -1358,6 +1321,7 @@ function handleAuthConfig(request, env) {
 
 async function handleOAuthStart(request, env) {
   if (request.method !== 'GET') return json({ ok:false, error:'Method not allowed' },405);
+  requireLocalizedPersonalData(request,env);
   if (!env.DB) throw new ServiceUnavailableError('Этот способ входа временно недоступен.');
   await ensureDatabase(env);
   const url = new URL(request.url);
@@ -1395,9 +1359,9 @@ async function exchangeOAuthCode(config, callbackUrl, code, codeVerifier, query)
   const body = new URLSearchParams({
     grant_type:'authorization_code',
     client_id:config.clientId,
-    code,
-    redirect_uri:callbackUrl
+    code
   });
+  if (config.tokenRedirectUri !== false) body.set('redirect_uri',callbackUrl);
   if (config.clientSecret) body.set('client_secret',config.clientSecret);
   if (codeVerifier) body.set('code_verifier',codeVerifier);
   if (query.get('device_id')) body.set('device_id',query.get('device_id'));
@@ -1421,7 +1385,8 @@ async function oauthUserInfo(config, token) {
       body:new URLSearchParams({ access_token:String(token.access_token), client_id:config.clientId })
     });
   } else {
-    response = await fetch(config.userInfoUrl,{ headers:{ authorization:`Bearer ${token.access_token}`, accept:'application/json' } });
+    const scheme = config.userInfoMethod === 'yandex' ? 'OAuth' : 'Bearer';
+    response = await fetch(config.userInfoUrl,{ headers:{ authorization:`${scheme} ${token.access_token}`, accept:'application/json' } });
   }
   if (!response.ok) throw new ValidationError('Не удалось загрузить профиль.');
   return await response.json().catch(()=>({}));
@@ -1431,18 +1396,29 @@ function normalizeOAuthProfile(provider, token, info) {
   const value = info?.user || info?.response?.[0] || info?.data || info || {};
   const providerUserId = String(value.user_id || value.id || value.sub || token.user_id || token.x_mailru_vid || '');
   if (!providerUserId) throw new ValidationError('Сервис не вернул идентификатор профиля.');
-  const name = [value.first_name,value.last_name].filter(Boolean).join(' ') || value.name || value.display_name || value.email || `${provider.toUpperCase()} пользователь`;
+  const name = [value.first_name,value.last_name].filter(Boolean).join(' ') || value.real_name || value.name || value.display_name || value.email || value.default_email || `${provider.toUpperCase()} пользователь`;
+  const phone = value.phone || value.phone_number || value.default_phone?.number || '';
+  const email = value.email || value.default_email || value.emails?.[0] || '';
+  const yandexAvatar = provider === 'yandex' && value.default_avatar_id && !value.is_avatar_empty
+    ? `https://avatars.yandex.net/get-yapic/${encodeURIComponent(String(value.default_avatar_id))}/islands-200`
+    : '';
   return {
     providerUserId,
     name:sanitizeAccountName(name),
-    phone:validateRussianPhone(value.phone || value.phone_number) ? normalizeRussianPhone(value.phone || value.phone_number) : '',
-    email:String(value.email || '').slice(0,160),
-    avatarUrl:String(value.avatar || value.avatar_url || value.picture || value.image || value.photo_200 || value.pic128x128 || '').slice(0,500),
-    raw:{ id:providerUserId, email:String(value.email || '') }
+    phone:validateRussianPhone(phone) ? normalizeRussianPhone(phone) : '',
+    email:String(email).slice(0,160),
+    avatarUrl:String(value.avatar || value.avatar_url || value.picture || value.image || value.photo_200 || value.pic128x128 || yandexAvatar).slice(0,500),
+    raw:{
+      id:providerUserId,
+      email:String(email),
+      gender:String(value.sex || value.gender || '').slice(0,16),
+      birthday:String(value.birthday || value.birth_date || '').slice(0,32)
+    }
   };
 }
 
 async function handleOAuthCallback(request, env, provider) {
+  requireLocalizedPersonalData(request,env);
   const home = new URL('/',request.url);
   try {
     if (!env.DB) throw new Error('db');
@@ -1760,7 +1736,8 @@ async function awardBonusForOrder(env, owner, order) {
 
 function bonusDiscountValue(type, subtotal) {
   if (type === 'discount_5') return Math.round(subtotal * 0.05);
-  if (type === 'free_sauce' || type === 'free_cheese') return Math.min(35, subtotal);
+  if (type === 'free_sauce') return Math.min(19, subtotal);
+  if (type === 'free_cheese') return Math.min(35, subtotal);
   if (type === 'free_drink') return Math.min(90, subtotal);
   return 0;
 }
@@ -1793,7 +1770,7 @@ async function applyBonusToOrder(env, owner, order) {
     appliedBonus:bonusFromRow(bonus),
     bonusDiscount,
     discount:Number(order.discount || 0) + bonusDiscount,
-    total:Math.max(0,Number(order.subtotal || 0) - Number(order.discount || 0) - bonusDiscount)
+    total:Math.max(0,Number(order.subtotal || 0) - Number(order.discount || 0) - bonusDiscount) + Number(order.deliveryFee || 0)
   };
 }
 
@@ -2115,6 +2092,10 @@ async function priceOrder(env, order) {
     price:String(item?.id || '').startsWith('drop:') ? await serverDropPrice(env,item) : serverItemPrice(item)
   })));
   const subtotal = items.reduce((sum, item) => sum + item.price * Number(item.qty || 1), 0);
+  if (order.delivery === 'Доставка' && subtotal < DELIVERY_MINIMUM_RUB) {
+    throw new ValidationError(`Минимальная сумма блюд для доставки — ${DELIVERY_MINIMUM_RUB} ₽.`);
+  }
+  const deliveryFee = order.delivery === 'Доставка' ? DELIVERY_FEE_RUB : 0;
   let discount = 0;
   const promo = String(order.promo || '').trim().toUpperCase();
 
@@ -2130,7 +2111,7 @@ async function priceOrder(env, order) {
     discount = Math.round(subtotal * 0.1);
   }
 
-  return { ...order, items, subtotal, discount, total: subtotal - discount, promo };
+  return { ...order, items, subtotal, discount, deliveryFee, total: subtotal - discount + deliveryFee, promo };
 }
 
 function orderFlow(delivery) {
@@ -2202,6 +2183,16 @@ function yookassaConfigured(env) {
   return Boolean(env.YOOKASSA_SHOP_ID && env.YOOKASSA_SECRET_KEY);
 }
 
+function personalDataLocalizationConfirmed(env) {
+  return String(env.PERSONAL_DATA_LOCALIZED || '').toLowerCase() === 'true';
+}
+
+function requireLocalizedPersonalData(request, env) {
+  if (!personalDataLocalizationConfirmed(env) && !authDevelopmentMode(request,env)) {
+    throw new ServiceUnavailableError('Личный кабинет откроется после завершения настройки защищённого хранения данных в России.');
+  }
+}
+
 function yookassaMethods(env) {
   const configured = new Set(String(env.YOOKASSA_PAYMENT_METHODS || 'bank_card,sbp')
     .split(/[\s,;]+/).map(value=>value.trim()).filter(Boolean));
@@ -2234,12 +2225,14 @@ function yookassaReceiptItems(order, env) {
     subtotal:Math.max(0,Number(item.price || 0) * Math.max(1,Number(item.qty || 1)))
   }));
   const sourceTotal = rows.reduce((sum,row)=>sum+row.subtotal,0);
-  let remaining = Number(order.total || 0);
+  const deliveryFee = Math.max(0,Number(order.deliveryFee || 0));
+  const foodTotal = Math.max(0,Number(order.total || 0) - deliveryFee);
+  let remaining = foodTotal;
   const result = [];
   rows.forEach((row,index)=>{
     const target = index === rows.length - 1
       ? remaining
-      : Math.max(0,Math.floor(Number(order.total || 0) * row.subtotal / Math.max(1,sourceTotal)));
+      : Math.max(0,Math.floor(foodTotal * row.subtotal / Math.max(1,sourceTotal)));
     remaining -= target;
     const base = Math.floor(target / row.quantity);
     const expensiveUnits = target - base * row.quantity;
@@ -2257,6 +2250,17 @@ function yookassaReceiptItems(order, env) {
       measure:'piece'
     }));
   });
+  if (deliveryFee > 0) {
+    result.push({
+      description:'Доставка заказа',
+      quantity:1,
+      amount:{ value:paymentAmountValue(deliveryFee),currency:'RUB' },
+      vat_code:vatCode,
+      payment_mode:'full_prepayment',
+      payment_subject:'service',
+      measure:'piece'
+    });
+  }
   if (!result.length || result.length > 80) throw new ValidationError('Не удалось подготовить чек для этого заказа.');
   return result;
 }
@@ -2477,19 +2481,22 @@ async function createDatabaseOrder(env, order, record) {
     ),
     env.DB.prepare(`INSERT INTO orders
       (id, tracking_token, owner_token_hash, account_user_id, customer_id, customer_name, phone, flow, delivery_method,
-       address, customer_email, payment_method, payment_provider, payment_status, provider_payment_id,
+       address, customer_email, offer_version, offer_accepted_at, personal_data_consent_version, personal_data_consent_at,
+       payment_method, payment_provider, payment_status, provider_payment_id,
        payment_confirmation_url, payment_idempotence_key, payment_expires_at, payment_confirmed_at,
        payment_error, fulfillment_applied_at, kitchen_sent_at, inventory_reserved_at,
        inventory_released_at, inventory_committed_at, refunded_amount, refund_status,
-       comment, promo_code, subtotal, discount, applied_bonus_id, bonus_discount, total,
+       comment, promo_code, subtotal, discount, delivery_fee, applied_bonus_id, bonus_discount, total,
        status_index, status, status_detail, canceled, terminal, created_at, updated_at)
-      VALUES (?, ?, ?, ?, (SELECT id FROM customers WHERE phone = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, '', '',
-        '', '', '', ?, '', '', 0, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      VALUES (?, ?, ?, ?, (SELECT id FROM customers WHERE phone = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, '', '',
+        '', '', '', ?, '', '', 0, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
       order.id, record.trackToken, String(order.ownerHash || ''), String(order.userId || ''), phone, String(order.name).trim(), phone,
       record.flow, flowDelivery(record.flow), String(order.address || ''), String(order.email || ''),
+      String(order.legalConsent.offerVersion), record.createdAt,
+      String(order.legalConsent.personalDataConsentVersion), record.createdAt,
       paymentMethodLabel(order.paymentCode), order.paymentCode === 'cash' ? 'cash' : 'yookassa', 'pending', String(order.paymentIdempotenceKey || ''), record.createdAt,
       String(order.comment || ''), String(order.promo || ''), Number(order.subtotal || 0),
-      Number(order.discount || 0), String(order.appliedBonus?.id || ''), Number(order.bonusDiscount || 0),
+      Number(order.discount || 0), Number(order.deliveryFee || 0), String(order.appliedBonus?.id || ''), Number(order.bonusDiscount || 0),
       Number(order.total || 0), Number(record.statusIndex),
       record.status, record.detail, record.canceled ? 1 : 0, record.terminal ? 1 : 0,
       record.createdAt, record.updatedAt
@@ -2567,6 +2574,12 @@ function validateOrder(order) {
   if (!validateRussianPhone(order.phone)) throw new ValidationError('Укажите российский мобильный номер в формате +7 9XX XXX-XX-XX');
   if (!Array.isArray(order.items) || order.items.length === 0 || order.items.length > 60) throw new ValidationError('Корзина пустая или слишком большая');
   if (!['Самовывоз', 'Доставка'].includes(order.delivery)) throw new ValidationError('Некорректный способ получения');
+  const legalConsent = order.legalConsent;
+  if (!legalConsent || legalConsent.offerAccepted !== true || legalConsent.personalDataAccepted !== true ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(String(legalConsent.offerVersion || '')) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(String(legalConsent.personalDataConsentVersion || ''))) {
+    throw new ValidationError('Нужно отдельно принять оферту и согласие на обработку персональных данных.');
+  }
   if (!['bank_card','sbp','cash'].includes(String(order.payment || ''))) throw new ValidationError('Выберите способ оплаты.');
   if (order.payment === 'cash' && order.delivery !== 'Самовывоз') {
     throw new ValidationError('Оплата наличными доступна только при самовывозе.');
@@ -2609,6 +2622,7 @@ function orderMessage(order) {
     '',
     `<b>Товары:</b> ${formatPrice(order.subtotal)}`,
     Number(order.discount) > 0 ? `<b>Скидка:</b> -${formatPrice(order.discount)}` : '',
+    Number(order.deliveryFee) > 0 ? `<b>Доставка:</b> ${formatPrice(order.deliveryFee)}` : '',
     `<b>Итого:</b> ${formatPrice(order.total)}`
   ].filter(Boolean).join('\n');
 }
@@ -2770,6 +2784,9 @@ function createOrderRecord(order, messages) {
 }
 
 async function handleOrder(request, env) {
+  if (!personalDataLocalizationConfirmed(env)) {
+    throw new ServiceUnavailableError('Онлайн-заказы откроются после завершения настройки защищённого хранения данных в России.');
+  }
   const rawOrder = await request.json();
   validateOrder(rawOrder);
   const cashOrder = rawOrder.payment === 'cash';
@@ -2873,7 +2890,7 @@ async function databasePaymentOrder(env, orderId) {
     o.kitchen_sent_at AS kitchenSentAt, o.inventory_reserved_at AS inventoryReservedAt,
     o.inventory_released_at AS inventoryReleasedAt, o.inventory_committed_at AS inventoryCommittedAt,
     o.refunded_amount AS refundedAmount, o.refund_status AS refundStatus,
-    o.comment, o.promo_code AS promo, o.subtotal, o.discount,
+    o.comment, o.promo_code AS promo, o.subtotal, o.discount, o.delivery_fee AS deliveryFee,
     o.applied_bonus_id AS appliedBonusId, o.bonus_discount AS bonusDiscount, o.total,
     o.created_at AS createdAt, o.updated_at AS updatedAt
     FROM orders o WHERE o.id = ?`).bind(orderId).first();
@@ -2916,6 +2933,7 @@ async function paymentResultPayload(env, order, record, extra = {}) {
       items:order.items,
       subtotal:Number(order.subtotal || 0),
       discount:Number(order.discount || 0),
+      deliveryFee:Number(order.deliveryFee || 0),
       bonusDiscount:Number(order.bonusDiscount || 0),
       total:Number(order.total || 0)
     },
@@ -3043,10 +3061,12 @@ async function processYookassaPayment(request, env, order, payment) {
 
 function handlePaymentConfig(env) {
   const methods = yookassaMethods(env);
-  const kitchenAvailable = Boolean(env.DB && env.TELEGRAM_BOT_TOKEN && telegramChatIds(env).length);
+  const localizationConfirmed = personalDataLocalizationConfirmed(env);
+  const kitchenAvailable = Boolean(localizationConfirmed && env.DB && env.TELEGRAM_BOT_TOKEN && telegramChatIds(env).length);
   const onlineAvailable = Boolean(kitchenAvailable && yookassaConfigured(env) && methods.length);
   return json({
     ok:true,
+    personalDataLocalized:localizationConfirmed,
     provider:onlineAvailable ? 'yookassa' : kitchenAvailable ? 'cash' : 'none',
     available:kitchenAvailable,
     methods:{
@@ -3356,19 +3376,22 @@ async function handleHealth(env) {
   }
 
   const paymentMethods = yookassaMethods(env);
-  const paymentConfigured = Boolean(database && yookassaConfigured(env) && paymentMethods.length);
-  const cashConfigured = Boolean(database && env.TELEGRAM_BOT_TOKEN && telegramChatIds(env).length);
+  const personalDataLocalized = personalDataLocalizationConfirmed(env);
+  const paymentConfigured = Boolean(personalDataLocalized && database && yookassaConfigured(env) && paymentMethods.length);
+  const cashConfigured = Boolean(personalDataLocalized && database && env.TELEGRAM_BOT_TOKEN && telegramChatIds(env).length);
   const authProviders = {
-    phone:Boolean(database && env.SMSRU_API_ID && String(env.AUTH_SECRET || '').length >= 32),
-    telegram:Boolean(database && env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_BOT_USERNAME),
-    vk:Boolean(database && oauthProvider(env,'vk')?.available),
-    ok:Boolean(database && oauthProvider(env,'ok')?.available),
-    mail:Boolean(database && oauthProvider(env,'mail')?.available),
-    max:Boolean(database && (env.MAX_BOT_TOKEN || oauthProvider(env,'max')?.available))
+    phone:Boolean(personalDataLocalized && database && env.SMSRU_API_ID && String(env.AUTH_SECRET || '').length >= 32),
+    telegram:Boolean(personalDataLocalized && database && env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_BOT_USERNAME),
+    vk:Boolean(personalDataLocalized && database && oauthProvider(env,'vk')?.available),
+    ok:Boolean(personalDataLocalized && database && oauthProvider(env,'ok')?.available),
+    mail:Boolean(personalDataLocalized && database && oauthProvider(env,'mail')?.available),
+    yandex:Boolean(personalDataLocalized && database && oauthProvider(env,'yandex')?.available),
+    max:Boolean(personalDataLocalized && database && (env.MAX_BOT_TOKEN || oauthProvider(env,'max')?.available))
   };
   return json({
     ok: true,
     database,
+    personalDataLocalized,
     statusStorage: database ? 'd1' : env.ORDER_STATUS ? 'kv' : 'none',
     telegram: Boolean(env.TELEGRAM_BOT_TOKEN && telegramChatIds(env).length),
     telegramRecipients: telegramChatIds(env).length,
@@ -3385,7 +3408,8 @@ async function handleHealth(env) {
     authCallbacks:{
       vk:'/api/auth/oauth/callback/vk',
       ok:'/api/auth/oauth/callback/ok',
-      mail:'/api/auth/oauth/callback/mail'
+      mail:'/api/auth/oauth/callback/mail',
+      yandex:'/api/auth/oauth/callback/yandex'
     },
     paymentReconciliation:'every_5_minutes',
     orderingAvailable:cashConfigured
