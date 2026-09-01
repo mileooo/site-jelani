@@ -4,3 +4,9 @@
 *.log
 server.stdout.log
 server.stderr.log
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
